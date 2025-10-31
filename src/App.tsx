@@ -10,6 +10,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import CartSidebar from "./components/CartSidebar";
 import ScrollToTop from "./components/ScrollToTop";
+import SEO from "./components/SEO";
 import HomePage from "./pages/HomePage";
 import ProductListingPage from "./pages/ProductListingPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
@@ -26,6 +27,7 @@ import SearchResultsPage from "./pages/SearchResultsPage";
 import AdminLayout from "./components/AdminLayout";
 import { categories as mockCategories } from "./data/mockData";
 import { Product, CartItem, Category } from "./types";
+import { getPageSEO } from "./utils/seo";
 // Use Firebase services
 import firebaseAdminService from "./services/firebaseAdminService";
 import firebaseAuthService from "./services/firebaseAuthService";

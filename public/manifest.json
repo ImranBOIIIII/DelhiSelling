@@ -1,0 +1,28 @@
+{
+  "name": "Delhi Selling - Bulk Bags Wholesale Supplier",
+  "short_name": "Delhi Selling",
+  "description": "Leading bulk bags supplier in Delhi. Buy wholesale bags at best prices. Wide range of handbags, backpacks, travel bags, laptop bags & more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "business"],
+  "lang": "en-IN",
+  "dir": "ltr",
+  "scope": "/"
+}

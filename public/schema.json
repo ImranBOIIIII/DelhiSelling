@@ -1,0 +1,157 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://delhiselling.com/#organization",
+      "name": "Delhi Selling",
+      "url": "https://delhiselling.com",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://delhiselling.com/logo.webp",
+        "width": 512,
+        "height": 512
+      },
+      "description": "Leading bulk bags supplier in Delhi. Buy wholesale bags at best prices. Wide range of handbags, backpacks, travel bags, laptop bags & more.",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "New Delhi",
+        "addressRegion": "Delhi",
+        "addressCountry": "IN"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "28.6139",
+        "longitude": "77.2090"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "Customer Service",
+        "areaServed": "IN",
+        "availableLanguage": ["English", "Hindi"]
+      },
+      "sameAs": [
+        "https://delhiselling.com"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://delhiselling.com/#website",
+      "url": "https://delhiselling.com",
+      "name": "Delhi Selling",
+      "description": "Leading bulk bags supplier in Delhi",
+      "publisher": {
+        "@id": "https://delhiselling.com/#organization"
+      },
+      "inLanguage": "en-IN",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://delhiselling.com/?search={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@type": "Store",
+      "@id": "https://delhiselling.com/#store",
+      "name": "Delhi Selling",
+      "image": "https://delhiselling.com/logo.webp",
+      "description": "Wholesale bulk bags supplier in Delhi offering handbags, backpacks, travel bags, laptop bags, wallets, and more at competitive prices.",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "New Delhi",
+        "addressRegion": "Delhi",
+        "addressCountry": "IN"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "28.6139",
+        "longitude": "77.2090"
+      },
+      "url": "https://delhiselling.com",
+      "priceRange": "₹₹",
+      "paymentAccepted": "Cash, Credit Card, Debit Card, UPI",
+      "currenciesAccepted": "INR",
+      "areaServed": {
+        "@type": "GeoCircle",
+        "geoMidpoint": {
+          "@type": "GeoCoordinates",
+          "latitude": "28.6139",
+          "longitude": "77.2090"
+        },
+        "geoRadius": "50000"
+      }
+    },
+    {
+      "@type": "ItemList",
+      "@id": "https://delhiselling.com/#categories",
+      "name": "Bag Categories",
+      "description": "Complete range of wholesale bags available",
+      "numberOfItems": 8,
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Handbags",
+          "url": "https://delhiselling.com/categories/handbags"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Backpacks",
+          "url": "https://delhiselling.com/categories/backpacks"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Travel Bags",
+          "url": "https://delhiselling.com/categories/travel-bags"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": "Laptop Bags",
+          "url": "https://delhiselling.com/categories/laptop-bags"
+        },
+        {
+          "@type": "ListItem",
+          "position": 5,
+          "name": "Wallets",
+          "url": "https://delhiselling.com/categories/wallets"
+        },
+        {
+          "@type": "ListItem",
+          "position": 6,
+          "name": "Clutches",
+          "url": "https://delhiselling.com/categories/clutches"
+        },
+        {
+          "@type": "ListItem",
+          "position": 7,
+          "name": "Duffel Bags",
+          "url": "https://delhiselling.com/categories/duffel-bags"
+        },
+        {
+          "@type": "ListItem",
+          "position": 8,
+          "name": "Tote Bags",
+          "url": "https://delhiselling.com/categories/tote-bags"
+        }
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://delhiselling.com/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://delhiselling.com"
+        }
+      ]
+    }
+  ]
+}

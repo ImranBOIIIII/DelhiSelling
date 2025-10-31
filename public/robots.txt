@@ -1,0 +1,23 @@
+# Allow all search engines to crawl the site
+User-agent: *
+Allow: /
+
+# Disallow admin and checkout pages from being indexed
+Disallow: /admin
+Disallow: /checkout
+Disallow: /cart
+Disallow: /login
+Disallow: /account/orders
+
+# Allow crawling of important pages
+Allow: /products
+Allow: /categories
+Allow: /deals
+Allow: /contact
+Allow: /about
+
+# Sitemap location
+Sitemap: https://delhiselling.com/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1
