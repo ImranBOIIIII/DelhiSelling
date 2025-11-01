@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { Edit3, Camera, Save, X } from 'lucide-react';
-import { User } from '../../types';
+import { useState } from "react";
+import { Edit3, Camera, Save, X } from "lucide-react";
+import { User } from "../../types";
 // Import Firebase services
-import firebaseAuthService from '../../services/firebaseAuthService';
-import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../services/firebaseConfig';
+import firebaseAuthService from "../../services/firebaseAuthService";
+import { updateProfile } from "firebase/auth";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../../services/firebaseConfig";
 
 interface ProfileSectionProps {
   user: User;
@@ -17,18 +17,18 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
   const [formData, setFormData] = useState({
     fullName: user.fullName,
     email: user.email,
-    phone: user.phone || '',
+    phone: user.phone || "",
   });
   const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
 
   const handleSave = async () => {
     try {
       // Update user data in Firestore
-      const userDocRef = doc(db, 'users', user.id);
+      const userDocRef = doc(db, "users", user.id);
       await updateDoc(userDocRef, {
         fullName: formData.fullName,
         email: formData.email,
@@ -52,49 +52,58 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
       });
 
       setIsEditing(false);
-      alert('Profile updated successfully!');
+      alert("Profile updated successfully!");
     } catch (error) {
-      console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
+      console.error("Error updating profile:", error);
+      alert("Failed to update profile. Please try again.");
     }
   };
 
   const handlePasswordChange = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('New passwords do not match!');
+      alert("New passwords do not match!");
       return;
     }
     if (passwordData.newPassword.length < 6) {
-      alert('Password must be at least 6 characters long!');
+      alert("Password must be at least 6 characters long!");
       return;
     }
-    
+
     // In a real app, this would make an API call to change password
     // Firebase has specific methods for password changes that require reauthentication
-    console.log('Changing password - in a real app this would use Firebase methods');
     setIsChangingPassword(false);
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    alert('Password changed successfully!');
+    setPasswordData({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    alert("Password changed successfully!");
   };
 
   const handleCancel = () => {
     setFormData({
       fullName: user.fullName,
       email: user.email,
-      phone: user.phone || '',
+      phone: user.phone || "",
     });
     setIsEditing(false);
   };
 
   const handlePasswordCancel = () => {
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setPasswordData({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
     setIsChangingPassword(false);
   };
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900">Profile Information</h2>
+        <h2 className="text-3xl font-bold text-gray-900">
+          Profile Information
+        </h2>
         {!isEditing && (
           <button
             onClick={() => setIsEditing(true)}
@@ -112,29 +121,41 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
           {isEditing ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
                 <input
                   type="text"
                   value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, fullName: e.target.value })
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address
+                </label>
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="+91 98765 43210"
                 />
@@ -160,20 +181,36 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
-                  <p className="text-lg font-semibold text-gray-900">{user.fullName}</p>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Full Name
+                  </label>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {user.fullName}
+                  </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Email Address</label>
-                  <p className="text-lg font-semibold text-gray-900">{user.email}</p>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Email Address
+                  </label>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {user.email}
+                  </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Phone Number</label>
-                  <p className="text-lg font-semibold text-gray-900">{user.phone || 'Not provided'}</p>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Phone Number
+                  </label>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {user.phone || "Not provided"}
+                  </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Account Type</label>
-                  <p className="text-lg font-semibold text-gray-900 capitalize">{user.role}</p>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Account Type
+                  </label>
+                  <p className="text-lg font-semibold text-gray-900 capitalize">
+                    {user.role}
+                  </p>
                 </div>
               </div>
             </div>
@@ -196,29 +233,50 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
             {isChangingPassword ? (
               <div className="space-y-4 max-w-md">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password
+                  </label>
                   <input
                     type="password"
                     value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        currentPassword: e.target.value,
+                      })
+                    }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password
+                  </label>
                   <input
                     type="password"
                     value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        newPassword: e.target.value,
+                      })
+                    }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm New Password
+                  </label>
                   <input
                     type="password"
                     value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        confirmPassword: e.target.value,
+                      })
+                    }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -238,7 +296,9 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
                 </div>
               </div>
             ) : (
-              <p className="text-gray-600">Password was last changed on January 15, 2025</p>
+              <p className="text-gray-600">
+                Password was last changed on January 15, 2025
+              </p>
             )}
           </div>
         </div>

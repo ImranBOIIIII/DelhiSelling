@@ -5,7 +5,9 @@ import {
   Route,
   useNavigate,
   useParams,
+  Navigate,
 } from "react-router-dom";
+import Lottie from "lottie-react";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import CartSidebar from "./components/CartSidebar";
@@ -28,6 +30,7 @@ import AdminLayout from "./components/AdminLayout";
 import { categories as mockCategories } from "./data/mockData";
 import { Product, CartItem, Category } from "./types";
 import { getPageSEO } from "./utils/seo";
+import error404Animation from "./animations/Error 404.json";
 // Use Firebase services
 import firebaseAdminService from "./services/firebaseAdminService";
 import firebaseAuthService from "./services/firebaseAuthService";
@@ -216,6 +219,28 @@ function AppContent() {
           />
           <Route path="/login" element={<LoginScreen />} />
           <Route
+            path="/404"
+            element={
+              <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-center">
+                  <div className="w-full max-w-2xl mx-auto px-4">
+                    <Lottie
+                      animationData={error404Animation}
+                      loop={true}
+                      style={{ width: "100%", height: "auto" }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleNavigate("home")}
+                    className="bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-lg mt-8"
+                  >
+                    Go Home
+                  </button>
+                </div>
+              </div>
+            }
+          />
+          <Route
             path="/*"
             element={
               <>
@@ -342,27 +367,7 @@ function AppContent() {
                   />
 
                   <Route path="/contact" element={<ContactPage />} />
-                  <Route
-                    path="/*"
-                    element={
-                      <div className="min-h-screen flex items-center justify-center">
-                        <div className="text-center">
-                          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                            404
-                          </h2>
-                          <p className="text-gray-600 mb-6">
-                            Oops, Page Doesn't Exists
-                          </p>
-                          <button
-                            onClick={() => handleNavigate("home")}
-                            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                          >
-                            Go Home
-                          </button>
-                        </div>
-                      </div>
-                    }
-                  />
+                  <Route path="*" element={<Navigate to="/404" replace />} />
                 </Routes>
                 <Footer onNavigate={handleNavigate} />
               </>
@@ -436,11 +441,9 @@ function ProductDetailRoute({
   }
 
   if (!selectedProduct) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Product not found</p>
-      </div>
-    );
+    // Navigate to 404 page
+    window.location.href = "/404";
+    return null;
   }
 
   return (
@@ -501,24 +504,9 @@ function CategoryProductsRoute({
   }
 
   if (!selectedCategory) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Category Not Found
-          </h2>
-          <p className="text-gray-600 mb-6">
-            The requested category could not be found.
-          </p>
-          <button
-            onClick={() => onNavigate("categories")}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-          >
-            Browse Categories
-          </button>
-        </div>
-      </div>
-    );
+    // Navigate to 404 page
+    window.location.href = "/404";
+    return null;
   }
 
   return (

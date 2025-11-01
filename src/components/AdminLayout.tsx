@@ -304,7 +304,7 @@ const AdminCategories = () => {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
       case "products":
-        return (b.productCount || 0) - (a.productCount || 0);
+        return 0; // Product count removed
       default:
         return 0;
     }
@@ -328,7 +328,6 @@ const AdminCategories = () => {
         // Update existing category
         const updatedCategory = {
           ...categoryData,
-          updatedAt: new Date().toISOString(),
           updatedBy: firebaseAdminService.getCurrentAdmin()?.id || "admin",
         };
         await firebaseAdminService.updateCategory(
@@ -343,11 +342,8 @@ const AdminCategories = () => {
             .toLowerCase()
             .replace(/\s+/g, "-")
             .replace(/[^a-z0-9-]/g, ""),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
           createdBy: firebaseAdminService.getCurrentAdmin()?.id || "admin",
           updatedBy: firebaseAdminService.getCurrentAdmin()?.id || "admin",
-          productCount: 0,
           isActive: true,
           showOnHomepage: categoryData.showOnHomepage ?? true,
         };
@@ -517,9 +513,7 @@ const AdminCategories = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {category.productCount || 0}
-                      </div>
+                      <div className="text-sm text-gray-900">-</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -1649,9 +1643,6 @@ const AdminProducts = () => {
       ]);
       setProducts(firebaseProducts);
       setCategories(firebaseCategories);
-
-      // Log for debugging
-      console.log("Loaded categories:", firebaseCategories);
     } catch (error) {
       console.error("Error loading products and categories:", error);
     } finally {
@@ -1715,17 +1706,8 @@ const AdminProducts = () => {
         const newProduct = {
           ...productData,
           slug: generateRandomSlug(10), // Generate random slug
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
           createdBy: firebaseAdminService.getCurrentAdmin()?.id || "admin",
           updatedBy: firebaseAdminService.getCurrentAdmin()?.id || "admin",
-          totalSold: 0,
-          totalRevenue: 0,
-          tags: [
-            productData.material?.toLowerCase(),
-            "wholesale",
-            "bulk",
-          ].filter(Boolean),
         };
         await firebaseAdminService.addProduct(newProduct);
       }
@@ -1743,14 +1725,12 @@ const AdminProducts = () => {
   const deleteProduct = async (productId: string) => {
     // Validate that productId is provided and not empty
     if (!productId || productId.trim() === "") {
-      console.error("Invalid product ID provided for deletion");
       alert("Failed to delete product: Invalid product ID.");
       return;
     }
 
     // Check if it's a temporary ID
     if (productId.startsWith("temp-")) {
-      console.error("Cannot delete product with temporary ID");
       alert(
         "Cannot delete this product. It hasn't been saved to the database yet. Please refresh the page and try again.",
       );
@@ -2398,11 +2378,14 @@ const ProductForm = ({
                 {formData.categoryId && (
                   <div className="flex items-center space-x-2 bg-indigo-50 px-3 py-2 rounded-md">
                     <span className="text-sm text-indigo-900">
-                      {categories.find((c) => c.id === formData.categoryId)?.name || "Unknown Category"}
+                      {categories.find((c) => c.id === formData.categoryId)
+                        ?.name || "Unknown Category"}
                     </span>
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, categoryId: "" })}
+                      onClick={() =>
+                        setFormData({ ...formData, categoryId: "" })
+                      }
                       className="text-indigo-600 hover:text-indigo-800"
                     >
                       ✕
@@ -2411,7 +2394,9 @@ const ProductForm = ({
                 )}
               </div>
               {!formData.categoryId && (
-                <p className="mt-1 text-sm text-red-600">Please select a category for this product</p>
+                <p className="mt-1 text-sm text-red-600">
+                  Please select a category for this product
+                </p>
               )}
             </div>
 
@@ -2676,7 +2661,9 @@ const ProductForm = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
           <div className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Select Category</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Select Category
+              </h3>
               <button
                 onClick={() => setShowCategoryModal(false)}
                 className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -2709,8 +2696,12 @@ const ProductForm = ({
                         />
                       )}
                       <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">{category.name}</h4>
-                        <p className="text-sm text-gray-600 line-clamp-1">{category.description}</p>
+                        <h4 className="font-semibold text-gray-900">
+                          {category.name}
+                        </h4>
+                        <p className="text-sm text-gray-600 line-clamp-1">
+                          {category.description}
+                        </p>
                       </div>
                       {formData.categoryId === category.id && (
                         <div className="text-indigo-600">✓</div>
@@ -2721,7 +2712,9 @@ const ProductForm = ({
               </div>
               {categories.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  <p>No categories available. Please create categories first.</p>
+                  <p>
+                    No categories available. Please create categories first.
+                  </p>
                 </div>
               )}
             </div>
@@ -2739,9 +2732,7 @@ const AdminOrders = () => {
   const [statusFilter, setStatusFilter] = useState<
     "all" | AdminOrder["status"]
   >("all");
-  const [internalFilter, setInternalFilter] = useState<
-    "all" | AdminOrder["internalStatus"]
-  >("all");
+
   const [sortBy, setSortBy] = useState<"date" | "total" | "status">("date");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -2773,9 +2764,7 @@ const AdminOrders = () => {
       `${o.orderNumber} ${o.customerName} ${o.customerEmail} ${o.customerPhone}`.toLowerCase();
     const passSearch = hay.includes(search.toLowerCase());
     const passStatus = statusFilter === "all" || o.status === statusFilter;
-    const passInternal =
-      internalFilter === "all" || o.internalStatus === internalFilter;
-    return passSearch && passStatus && passInternal;
+    return passSearch && passStatus;
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -3097,16 +3086,32 @@ const OrderDetailsModal = ({
           {/* Order Info Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-              <div className="text-xs text-blue-600 font-medium">Order Number</div>
-              <div className="text-lg font-mono font-bold text-blue-900">{order.orderNumber}</div>
+              <div className="text-xs text-blue-600 font-medium">
+                Order Number
+              </div>
+              <div className="text-lg font-mono font-bold text-blue-900">
+                {order.orderNumber}
+              </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-xs text-gray-500 font-medium">Order Date</div>
-              <div className="text-sm font-semibold text-gray-900">{new Date(order.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+              <div className="text-xs text-gray-500 font-medium">
+                Order Date
+              </div>
+              <div className="text-sm font-semibold text-gray-900">
+                {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-xs text-gray-500 font-medium">Total Amount</div>
-              <div className="text-lg font-bold text-gray-900">₹{order.totalAmount.toLocaleString('en-IN')}</div>
+              <div className="text-xs text-gray-500 font-medium">
+                Total Amount
+              </div>
+              <div className="text-lg font-bold text-gray-900">
+                ₹{order.totalAmount.toLocaleString("en-IN")}
+              </div>
             </div>
           </div>
 

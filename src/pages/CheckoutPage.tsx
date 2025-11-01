@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Truck, CreditCard, MapPin, User, Phone, Mail, Package } from 'lucide-react';
-import { CartItem, Address } from '../types';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  CheckCircle,
+  Truck,
+  CreditCard,
+  MapPin,
+  User,
+  Phone,
+  Mail,
+  Package,
+} from "lucide-react";
+import { CartItem, Address } from "../types";
 // Replace localStorage-based services with Firebase services
-import firebaseAuthService from '../services/firebaseAuthService';
-import firebaseAdminService from '../services/firebaseAdminService';
-import { AdminOrder } from '../types';
+import firebaseAuthService from "../services/firebaseAuthService";
+import firebaseAdminService from "../services/firebaseAdminService";
+import { AdminOrder } from "../types";
 
 interface CheckoutPageProps {
   cartItems: CartItem[];
@@ -16,88 +25,95 @@ interface CheckoutPageProps {
 export default function CheckoutPage({
   cartItems,
   onUpdateQuantity,
-  onRemoveItem
+  onRemoveItem,
 }: CheckoutPageProps) {
   const navigate = useNavigate();
-  
+
   // Check if user is authenticated
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+
   // User addresses
   const [userAddresses, setUserAddresses] = useState<Address[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-  
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
+    null,
+  );
+
   // Calculate totals
-  const subtotal = cartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + item.product.price * item.quantity,
+    0,
+  );
   const shipping = 0; // Free shipping
   const total = subtotal + shipping;
-  
+
   // Form states
   const [activeStep, setActiveStep] = useState(1);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<AdminOrder | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   // Customer information
   const [customerInfo, setCustomerInfo] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    company: '',
-    gstNumber: ''
+    fullName: "",
+    email: "",
+    phone: "",
+    company: "",
+    gstNumber: "",
   });
-  
+
   // Manual shipping address (for users without saved addresses or when adding new)
   const [manualShippingAddress, setManualShippingAddress] = useState({
-    addressLine1: '',
-    addressLine2: '',
-    city: '',
-    state: '',
-    pincode: '',
-    country: 'India'
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    pincode: "",
+    country: "India",
   });
-  
+
   // Billing address
   const [billingAddress, setBillingAddress] = useState({
-    addressLine1: '',
-    addressLine2: '',
-    city: '',
-    state: '',
-    pincode: '',
-    country: 'India'
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    pincode: "",
+    country: "India",
   });
-  
+
   // Payment method
-  const [paymentMethod, setPaymentMethod] = useState('bank-transfer');
-  
+  const [paymentMethod, setPaymentMethod] = useState("bank-transfer");
+
   // Same as shipping checkbox
   const [sameAsShipping, setSameAsShipping] = useState(true);
-  
+
   // Check authentication on component mount
   useEffect(() => {
     const user = firebaseAuthService.getCurrentUser();
     if (user) {
       setIsAuthenticated(true);
       setCurrentUser(user);
-      
+
       // Pre-fill customer info with user data
       setCustomerInfo({
-        fullName: user.fullName || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        company: '',
-        gstNumber: ''
+        fullName: user.fullName || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        company: "",
+        gstNumber: "",
       });
-      
+
       // In a real app, you would fetch user addresses from Firebase
       // For now, we'll use localStorage as a fallback
-      const savedAddresses = localStorage.getItem('user_addresses');
+      const savedAddresses = localStorage.getItem("user_addresses");
       if (savedAddresses) {
         const addresses = JSON.parse(savedAddresses);
         setUserAddresses(addresses);
         // Select the default address if available
-        const defaultAddress = addresses.find((addr: Address) => addr.isDefault);
+        const defaultAddress = addresses.find(
+          (addr: Address) => addr.isDefault,
+        );
         if (defaultAddress) {
           setSelectedAddressId(defaultAddress.id);
         } else if (addresses.length > 0) {
@@ -106,26 +122,30 @@ export default function CheckoutPage({
       }
     } else {
       // Redirect to login if not authenticated
-      navigate('/login');
+      navigate("/login");
     }
   }, [navigate]);
-  
+
   // Handle form changes
   const handleCustomerInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setCustomerInfo(prev => ({ ...prev, [name]: value }));
+    setCustomerInfo((prev) => ({ ...prev, [name]: value }));
   };
-  
-  const handleManualShippingAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleManualShippingAddressChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const { name, value } = e.target;
-    setManualShippingAddress(prev => ({ ...prev, [name]: value }));
+    setManualShippingAddress((prev) => ({ ...prev, [name]: value }));
   };
-  
-  const handleBillingAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleBillingAddressChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const { name, value } = e.target;
-    setBillingAddress(prev => ({ ...prev, [name]: value }));
+    setBillingAddress((prev) => ({ ...prev, [name]: value }));
   };
-  
+
   // Handle same as shipping checkbox
   const handleSameAsShippingChange = () => {
     setSameAsShipping(!sameAsShipping);
@@ -135,26 +155,28 @@ export default function CheckoutPage({
         // Create a new object with all required fields
         setBillingAddress({
           addressLine1: selectedAddress.addressLine1,
-          addressLine2: selectedAddress.addressLine2 || '',
+          addressLine2: selectedAddress.addressLine2 || "",
           city: selectedAddress.city,
           state: selectedAddress.state,
           pincode: selectedAddress.pincode,
-          country: 'India' // Default country
+          country: "India", // Default country
         });
       } else {
         setBillingAddress(manualShippingAddress);
       }
     }
   };
-  
+
   // Get the currently selected shipping address
   const getSelectedShippingAddress = (): Address | null => {
     if (selectedAddressId) {
-      return userAddresses.find(addr => addr.id === selectedAddressId) || null;
+      return (
+        userAddresses.find((addr) => addr.id === selectedAddressId) || null
+      );
     }
     return null;
   };
-  
+
   // Handle place order
   const handlePlaceOrder = async () => {
     setLoading(true);
@@ -164,70 +186,69 @@ export default function CheckoutPage({
       if (!shippingAddr) {
         // Use manual address if no saved address is selected
         shippingAddr = {
-          id: 'manual_' + Date.now().toString(),
-          fullName: customerInfo.fullName || currentUser?.fullName || '',
-          phone: customerInfo.phone || currentUser?.phone || '',
+          id: "manual_" + Date.now().toString(),
+          fullName: customerInfo.fullName || currentUser?.fullName || "",
+          phone: customerInfo.phone || currentUser?.phone || "",
           addressLine1: manualShippingAddress.addressLine1,
-          addressLine2: manualShippingAddress.addressLine2 || '',
+          addressLine2: manualShippingAddress.addressLine2 || "",
           city: manualShippingAddress.city,
           state: manualShippingAddress.state,
           pincode: manualShippingAddress.pincode,
-          isDefault: true
+          isDefault: true,
         };
       }
-      
+
       // Build AdminOrder payload (fields auto-generated by service: id, orderNumber, timestamps)
       const orderItems = cartItems.map((item) => ({
         id: item.id,
         productName: item.product.name,
         productImage: item.product.images[0],
         quantity: item.quantity,
-        price: item.product.price
+        price: item.product.price,
       }));
 
       const newOrderInput = {
-        status: 'pending' as const,
+        status: "pending" as const,
         totalAmount: total,
         shippingAddress: shippingAddr,
-        paymentMethod: 'Bank Transfer',
-        paymentStatus: 'pending' as const,
+        paymentMethod: "Bank Transfer",
+        paymentStatus: "pending" as const,
         items: orderItems,
         // Customer fields for admin
-        customerName: customerInfo.fullName || currentUser?.fullName || '',
-        customerEmail: customerInfo.email || currentUser?.email || '',
-        customerPhone: customerInfo.phone || currentUser?.phone || '',
-        internalStatus: 'new' as const,
+        customerName: customerInfo.fullName || currentUser?.fullName || "",
+        customerEmail: customerInfo.email || currentUser?.email || "",
+        customerPhone: customerInfo.phone || currentUser?.phone || "",
+        internalStatus: "new" as const,
         // These fields will be auto-generated by the service
-        orderNumber: '',
-        createdAt: '',
-        updatedAt: ''
+        orderNumber: "",
+        createdAt: "",
+        updatedAt: "",
       };
 
       const saved = await firebaseAdminService.addOrder(newOrderInput);
-      console.log('Order placed and saved to Firebase:', saved);
 
       // Store the placed order details for display
       setPlacedOrder(saved);
       setOrderPlaced(true);
       setActiveStep(4);
     } catch (error) {
-      console.error('Error placing order:', error);
-      alert('Failed to place order. Please try again.');
+      console.error("Error placing order:", error);
+      alert("Failed to place order. Please try again.");
     } finally {
       setLoading(false);
     }
   };
-  
+
   // Handle continue shopping
   const handleContinueShopping = () => {
-    navigate('/products');
+    navigate("/products");
   };
-  
+
   // If not authenticated, don't render anything (navigation will redirect)
   if (!isAuthenticated) {
     return null;
   }
-  
+
   // If order is placed, show confirmation
   if (orderPlaced) {
     return (
@@ -237,21 +258,35 @@ export default function CheckoutPage({
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="w-12 h-12 text-green-600" />
             </div>
-            
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Order Confirmed!</h1>
-            <p className="text-gray-600 mb-2">Thank you for your order. We our team will contact you shortly. <span className="font-semibold">{customerInfo.email}</span>.</p>
-            <p className="text-gray-600 mb-8">Our team will contact you shortly to discuss bulk pricing and delivery.</p>
-            
+
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Order Confirmed!
+            </h1>
+            <p className="text-gray-600 mb-2">
+              Thank you for your order. We our team will contact you shortly.{" "}
+              <span className="font-semibold">{customerInfo.email}</span>.
+            </p>
+            <p className="text-gray-600 mb-8">
+              Our team will contact you shortly to discuss bulk pricing and
+              delivery.
+            </p>
+
             <div className="bg-gray-50 rounded-lg p-6 mb-8 text-left">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Order Summary
+              </h2>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Order Number</span>
-                  <span className="font-mono font-bold text-blue-600">{placedOrder?.orderNumber || 'N/A'}</span>
+                  <span className="font-mono font-bold text-blue-600">
+                    {placedOrder?.orderNumber || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total Amount</span>
-                  <span className="font-medium">₹{total.toLocaleString('en-IN')}</span>
+                  <span className="font-medium">
+                    ₹{total.toLocaleString("en-IN")}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Items</span>
@@ -259,11 +294,17 @@ export default function CheckoutPage({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Order Date</span>
-                  <span className="font-medium">{new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                  <span className="font-medium">
+                    {new Date().toLocaleDateString("en-IN", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </span>
                 </div>
               </div>
             </div>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={handleContinueShopping}
@@ -272,7 +313,7 @@ export default function CheckoutPage({
                 Continue Shopping
               </button>
               <button
-                onClick={() => navigate('/account')}
+                onClick={() => navigate("/account")}
                 className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
               >
                 View Account
@@ -283,15 +324,15 @@ export default function CheckoutPage({
       </div>
     );
   }
-  
+
   // Get the currently selected address for display
   const selectedAddress = getSelectedShippingAddress();
-  
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
-        
+
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
@@ -300,30 +341,38 @@ export default function CheckoutPage({
               <div className="flex justify-between">
                 {[1, 2, 3].map((step) => (
                   <div key={step} className="flex items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      activeStep >= step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}>
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        activeStep >= step
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
+                    >
                       {step}
                     </div>
                     <div className="ml-2 hidden md:block">
-                      <span className={`text-sm font-medium ${
-                        activeStep >= step ? 'text-blue-600' : 'text-gray-500'
-                      }`}>
-                        {step === 1 && 'Customer Info'}
-                        {step === 2 && 'Shipping'}
-                        {step === 3 && 'Review'}
+                      <span
+                        className={`text-sm font-medium ${
+                          activeStep >= step ? "text-blue-600" : "text-gray-500"
+                        }`}
+                      >
+                        {step === 1 && "Customer Info"}
+                        {step === 2 && "Shipping"}
+                        {step === 3 && "Review"}
                       </span>
                     </div>
                     {step < 3 && (
-                      <div className={`w-16 h-1 mx-4 ${
-                        activeStep > step ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}></div>
+                      <div
+                        className={`w-16 h-1 mx-4 ${
+                          activeStep > step ? "bg-blue-600" : "bg-gray-200"
+                        }`}
+                      ></div>
                     )}
                   </div>
                 ))}
               </div>
             </div>
-            
+
             {/* Customer Information */}
             {activeStep === 1 && (
               <div className="bg-white rounded-xl shadow-sm p-6">
@@ -331,7 +380,7 @@ export default function CheckoutPage({
                   <User className="w-5 h-5 mr-2" />
                   Customer Information
                 </h2>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -347,7 +396,7 @@ export default function CheckoutPage({
                       required
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Email Address *
@@ -362,7 +411,7 @@ export default function CheckoutPage({
                       required
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Phone Number *
@@ -377,7 +426,7 @@ export default function CheckoutPage({
                       required
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Company Name
@@ -391,7 +440,7 @@ export default function CheckoutPage({
                       placeholder="Your company name"
                     />
                   </div>
-                  
+
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       GST Number (if applicable)
@@ -406,11 +455,15 @@ export default function CheckoutPage({
                     />
                   </div>
                 </div>
-                
+
                 <div className="mt-8 flex justify-end">
                   <button
                     onClick={() => setActiveStep(2)}
-                    disabled={!customerInfo.fullName || !customerInfo.email || !customerInfo.phone}
+                    disabled={
+                      !customerInfo.fullName ||
+                      !customerInfo.email ||
+                      !customerInfo.phone
+                    }
                     className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Continue to Shipping
@@ -418,7 +471,7 @@ export default function CheckoutPage({
                 </div>
               </div>
             )}
-            
+
             {/* Shipping Information */}
             {activeStep === 2 && (
               <div className="bg-white rounded-xl shadow-sm p-6">
@@ -426,19 +479,21 @@ export default function CheckoutPage({
                   <Truck className="w-5 h-5 mr-2" />
                   Shipping Information
                 </h2>
-                
+
                 {/* Address Selection */}
                 {userAddresses.length > 0 && (
                   <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Shipping Address</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      Select Shipping Address
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {userAddresses.map((address) => (
-                        <div 
+                        <div
                           key={address.id}
                           className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                            selectedAddressId === address.id 
-                              ? 'border-blue-500 bg-blue-50' 
-                              : 'border-gray-200 hover:border-gray-300'
+                            selectedAddressId === address.id
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:border-gray-300"
                           }`}
                           onClick={() => setSelectedAddressId(address.id)}
                         >
@@ -452,27 +507,38 @@ export default function CheckoutPage({
                             />
                             <div>
                               <div className="flex justify-between">
-                                <h4 className="font-semibold text-gray-900">{address.fullName}</h4>
+                                <h4 className="font-semibold text-gray-900">
+                                  {address.fullName}
+                                </h4>
                                 {address.isDefault && (
-                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Default</span>
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                    Default
+                                  </span>
                                 )}
                               </div>
-                              <p className="text-gray-600 text-sm">{address.phone}</p>
+                              <p className="text-gray-600 text-sm">
+                                {address.phone}
+                              </p>
                               <div className="text-gray-700 mt-2 text-sm">
                                 <p>{address.addressLine1}</p>
-                                {address.addressLine2 && <p>{address.addressLine2}</p>}
-                                <p>{address.city}, {address.state} {address.pincode}</p>
+                                {address.addressLine2 && (
+                                  <p>{address.addressLine2}</p>
+                                )}
+                                <p>
+                                  {address.city}, {address.state}{" "}
+                                  {address.pincode}
+                                </p>
                               </div>
                             </div>
                           </div>
                         </div>
                       ))}
-                      
-                      <div 
+
+                      <div
                         className={`border-2 border-dashed rounded-lg p-4 cursor-pointer flex items-center justify-center ${
-                          selectedAddressId === null 
-                            ? 'border-blue-500 bg-blue-50' 
-                            : 'border-gray-200 hover:border-gray-300'
+                          selectedAddressId === null
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300"
                         }`}
                         onClick={() => setSelectedAddressId(null)}
                       >
@@ -483,19 +549,23 @@ export default function CheckoutPage({
                           onChange={() => setSelectedAddressId(null)}
                           className="mr-3"
                         />
-                        <span className="text-blue-600 font-medium">Add New Address</span>
+                        <span className="text-blue-600 font-medium">
+                          Add New Address
+                        </span>
                       </div>
                     </div>
                   </div>
                 )}
-                
+
                 {/* Address Form (shown when no addresses exist or when adding new) */}
                 {userAddresses.length === 0 || selectedAddressId === null ? (
                   <div className="space-y-6">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {userAddresses.length === 0 ? 'Add Shipping Address' : 'New Shipping Address'}
+                      {userAddresses.length === 0
+                        ? "Add Shipping Address"
+                        : "New Shipping Address"}
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -511,7 +581,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Address Line 2
@@ -525,7 +595,7 @@ export default function CheckoutPage({
                           placeholder="Apartment, suite, etc. (optional)"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           City *
@@ -540,7 +610,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           State *
@@ -555,7 +625,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           PIN Code *
@@ -570,7 +640,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Country
@@ -588,7 +658,7 @@ export default function CheckoutPage({
                     </div>
                   </div>
                 ) : null}
-                
+
                 <div className="mt-6">
                   <label className="flex items-center">
                     <input
@@ -597,10 +667,12 @@ export default function CheckoutPage({
                       onChange={handleSameAsShippingChange}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700">Billing address is same as shipping address</span>
+                    <span className="ml-2 text-sm text-gray-700">
+                      Billing address is same as shipping address
+                    </span>
                   </label>
                 </div>
-                
+
                 {/* Billing Address (only shown if different from shipping) */}
                 {!sameAsShipping && (
                   <div className="mt-8 pt-6 border-t border-gray-200">
@@ -608,7 +680,7 @@ export default function CheckoutPage({
                       <CreditCard className="w-5 h-5 mr-2" />
                       Billing Address
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -624,7 +696,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Address Line 2
@@ -638,7 +710,7 @@ export default function CheckoutPage({
                           placeholder="Apartment, suite, etc. (optional)"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           City *
@@ -653,7 +725,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           State *
@@ -668,7 +740,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           PIN Code *
@@ -683,7 +755,7 @@ export default function CheckoutPage({
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Country
@@ -701,7 +773,7 @@ export default function CheckoutPage({
                     </div>
                   </div>
                 )}
-                
+
                 <div className="mt-8 flex justify-between">
                   <button
                     onClick={() => setActiveStep(1)}
@@ -718,7 +790,7 @@ export default function CheckoutPage({
                 </div>
               </div>
             )}
-            
+
             {/* Order Review */}
             {activeStep === 3 && (
               <div className="bg-white rounded-xl shadow-sm p-6">
@@ -726,62 +798,87 @@ export default function CheckoutPage({
                   <Package className="w-5 h-5 mr-2" />
                   Review Your Order
                 </h2>
-                
+
                 {/* Order Summary */}
                 <div className="border border-gray-200 rounded-lg p-6 mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
-                  
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Order Summary
+                  </h3>
+
                   <div className="space-y-4">
                     {cartItems.map((item) => (
-                      <div key={item.id} className="flex gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                      <div
+                        key={item.id}
+                        className="flex gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+                      >
                         <img
                           src={item.product.images[0]}
                           alt={item.product.name}
                           className="w-16 h-16 object-cover rounded-lg"
                         />
-                        
+
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">{item.product.name}</h4>
-                          <p className="text-sm text-gray-500">{item.product.brand}</p>
+                          <h4 className="font-semibold text-gray-900">
+                            {item.product.name}
+                          </h4>
+                          <p className="text-sm text-gray-500">
+                            {item.product.brand}
+                          </p>
                           <div className="flex justify-between items-center mt-2">
                             <div>
-                              <span className="text-sm text-gray-600">Qty: {item.quantity}</span>
+                              <span className="text-sm text-gray-600">
+                                Qty: {item.quantity}
+                              </span>
                               {item.product.minOrderQuantity > 1 && (
-                                <span className="text-xs text-blue-600 ml-2">(Min: {item.product.minOrderQuantity})</span>
+                                <span className="text-xs text-blue-600 ml-2">
+                                  (Min: {item.product.minOrderQuantity})
+                                </span>
                               )}
                             </div>
                             <span className="font-semibold text-gray-900">
-                              ₹{(item.product.price * item.quantity).toLocaleString('en-IN')}
+                              ₹
+                              {(
+                                item.product.price * item.quantity
+                              ).toLocaleString("en-IN")}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">₹{item.product.price.toLocaleString('en-IN')} per piece</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            ₹{item.product.price.toLocaleString("en-IN")} per
+                            piece
+                          </p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  
+
                   <div className="mt-6 space-y-3">
                     <div className="flex justify-between text-gray-600">
                       <span>Subtotal</span>
-                      <span>₹{subtotal.toLocaleString('en-IN')}</span>
+                      <span>₹{subtotal.toLocaleString("en-IN")}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Shipping</span>
-                      <span>{shipping === 0 ? 'Free' : `₹${shipping.toLocaleString('en-IN')}`}</span>
+                      <span>
+                        {shipping === 0
+                          ? "Free"
+                          : `₹${shipping.toLocaleString("en-IN")}`}
+                      </span>
                     </div>
                     <div className="flex justify-between pt-4 border-t border-gray-200">
                       <span className="font-semibold text-gray-900">Total</span>
                       <span className="text-xl font-bold text-gray-900">
-                        ₹{total.toLocaleString('en-IN')}
+                        ₹{total.toLocaleString("en-IN")}
                       </span>
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Customer Information */}
                 <div className="border border-gray-200 rounded-lg p-6 mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Information</h3>
-                  
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Customer Information
+                  </h3>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-600">Name</p>
@@ -803,29 +900,44 @@ export default function CheckoutPage({
                     )}
                   </div>
                 </div>
-                
+
                 {/* Shipping Information */}
                 <div className="border border-gray-200 rounded-lg p-6 mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Information</h3>
-                  
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Shipping Information
+                  </h3>
+
                   <div className="flex items-start">
                     <MapPin className="w-5 h-5 text-gray-400 mt-0.5 mr-2 flex-shrink-0" />
                     <div>
                       {selectedAddress ? (
                         <>
-                          <p className="font-medium">{selectedAddress.fullName}</p>
+                          <p className="font-medium">
+                            {selectedAddress.fullName}
+                          </p>
                           <p>{selectedAddress.phone}</p>
                           <p className="mt-2">{selectedAddress.addressLine1}</p>
-                          {selectedAddress.addressLine2 && <p>{selectedAddress.addressLine2}</p>}
-                          <p>{selectedAddress.city}, {selectedAddress.state} {selectedAddress.pincode}</p>
+                          {selectedAddress.addressLine2 && (
+                            <p>{selectedAddress.addressLine2}</p>
+                          )}
+                          <p>
+                            {selectedAddress.city}, {selectedAddress.state}{" "}
+                            {selectedAddress.pincode}
+                          </p>
                           <p>India</p>
                         </>
                       ) : (
                         <>
                           <p className="font-medium">{customerInfo.fullName}</p>
                           <p>{manualShippingAddress.addressLine1}</p>
-                          {manualShippingAddress.addressLine2 && <p>{manualShippingAddress.addressLine2}</p>}
-                          <p>{manualShippingAddress.city}, {manualShippingAddress.state} {manualShippingAddress.pincode}</p>
+                          {manualShippingAddress.addressLine2 && (
+                            <p>{manualShippingAddress.addressLine2}</p>
+                          )}
+                          <p>
+                            {manualShippingAddress.city},{" "}
+                            {manualShippingAddress.state}{" "}
+                            {manualShippingAddress.pincode}
+                          </p>
                           <p>{manualShippingAddress.country}</p>
                           <p className="mt-2">{customerInfo.phone}</p>
                         </>
@@ -833,20 +945,24 @@ export default function CheckoutPage({
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Payment Method */}
                 <div className="border border-gray-200 rounded-lg p-6 mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h3>
-                  
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Payment Method
+                  </h3>
+
                   <div className="flex items-center">
                     <CreditCard className="w-5 h-5 text-gray-400 mr-2" />
                     <div>
                       <p className="font-medium">Bank Transfer</p>
-                      <p className="text-sm text-gray-600">You will receive bank details after order confirmation</p>
+                      <p className="text-sm text-gray-600">
+                        You will receive bank details after order confirmation
+                      </p>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-8 flex justify-between">
                   <button
                     onClick={() => setActiveStep(2)}
@@ -859,17 +975,19 @@ export default function CheckoutPage({
                     disabled={loading}
                     className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
-                    {loading ? 'Placing Order...' : 'Place Order'}
+                    {loading ? "Placing Order..." : "Place Order"}
                   </button>
                 </div>
               </div>
             )}
-            
+
             {/* Order Summary Sidebar */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-xl shadow-sm p-6 sticky top-24">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Order Summary</h2>
-                
+                <h2 className="text-xl font-bold text-gray-900 mb-6">
+                  Order Summary
+                </h2>
+
                 <div className="space-y-4 mb-6">
                   {cartItems.map((item) => (
                     <div key={item.id} className="flex gap-3">
@@ -878,46 +996,63 @@ export default function CheckoutPage({
                         alt={item.product.name}
                         className="w-12 h-12 object-cover rounded-lg"
                       />
-                      
+
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-gray-900 truncate">{item.product.name}</h3>
-                        <p className="text-xs text-gray-500">{item.product.brand}</p>
+                        <h3 className="text-sm font-medium text-gray-900 truncate">
+                          {item.product.name}
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          {item.product.brand}
+                        </p>
                         <div className="flex justify-between items-center mt-1">
                           <div>
-                            <span className="text-xs text-gray-600">Qty: {item.quantity}</span>
+                            <span className="text-xs text-gray-600">
+                              Qty: {item.quantity}
+                            </span>
                             {item.product.minOrderQuantity > 1 && (
-                              <span className="text-xs text-blue-600 block">(Min: {item.product.minOrderQuantity})</span>
+                              <span className="text-xs text-blue-600 block">
+                                (Min: {item.product.minOrderQuantity})
+                              </span>
                             )}
                           </div>
                           <span className="text-sm font-semibold text-gray-900">
-                            ₹{(item.product.price * item.quantity).toLocaleString('en-IN')}
+                            ₹
+                            {(
+                              item.product.price * item.quantity
+                            ).toLocaleString("en-IN")}
                           </span>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                
+
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
-                    <span>₹{subtotal.toLocaleString('en-IN')}</span>
+                    <span>₹{subtotal.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>Shipping</span>
-                    <span>{shipping === 0 ? 'Free' : `₹${shipping.toLocaleString('en-IN')}`}</span>
+                    <span>
+                      {shipping === 0
+                        ? "Free"
+                        : `₹${shipping.toLocaleString("en-IN")}`}
+                    </span>
                   </div>
                   <div className="flex justify-between pt-4 border-t border-gray-200">
                     <span className="font-semibold text-gray-900">Total</span>
                     <span className="text-lg font-bold text-gray-900">
-                      ₹{total.toLocaleString('en-IN')}
+                      ₹{total.toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>
-                
+
                 <div className="bg-blue-50 rounded-lg p-4">
                   <p className="text-sm text-blue-800">
-                    <span className="font-semibold">Note:</span> This is a bulk order request. Our team will contact you within 24 hours to discuss pricing and delivery options.
+                    <span className="font-semibold">Note:</span> This is a bulk
+                    order request. Our team will contact you within 24 hours to
+                    discuss pricing and delivery options.
                   </p>
                 </div>
               </div>

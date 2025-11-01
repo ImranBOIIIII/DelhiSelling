@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Product } from '../types';
-import ProductCard from '../components/ProductCard';
+import { useState, useEffect } from "react";
+import { Product } from "../types";
+import ProductCard from "../components/ProductCard";
 // Replace localStorage-based adminService with Firebase admin service
-import firebaseAdminService from '../services/firebaseAdminService';
-import firebaseService from '../services/firebaseService';
+import firebaseAdminService from "../services/firebaseAdminService";
+import firebaseService from "../services/firebaseService";
 
 interface CategoryProductsPageProps {
   categoryId: string;
@@ -20,7 +20,7 @@ export default function CategoryProductsPage({
   onNavigate,
   onAddToCart,
   onToggleWishlist,
-  wishlistIds
+  wishlistIds,
 }: CategoryProductsPageProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,23 +31,27 @@ export default function CategoryProductsPage({
       try {
         setLoading(true);
         const allProducts = await firebaseAdminService.getAdminProducts();
-        const categoryProducts = allProducts.filter(product => product.categoryId === categoryId);
+        const categoryProducts = allProducts.filter(
+          (product) => product.categoryId === categoryId,
+        );
         setProducts(categoryProducts);
       } catch (error) {
-        console.error('Error loading category products:', error);
+        console.error("Error loading category products:", error);
       } finally {
         setLoading(false);
       }
     };
 
     loadCategoryProducts();
-    
+
     // Set up real-time listener for products
     const unsubscribe = firebaseService.onProductsChange((updatedProducts) => {
-      const categoryProducts = updatedProducts.filter(product => product.categoryId === categoryId);
+      const categoryProducts = updatedProducts.filter(
+        (product) => product.categoryId === categoryId,
+      );
       setProducts(categoryProducts);
     });
-    
+
     // Clean up listener
     return () => {
       if (unsubscribe) {
@@ -74,7 +78,7 @@ export default function CategoryProductsPage({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center">
             <button
-              onClick={() => onNavigate('categories')}
+              onClick={() => onNavigate("categories")}
               className="text-blue-600 hover:text-blue-800 flex items-center mr-4"
             >
               <span className="text-lg">←</span>
@@ -83,7 +87,8 @@ export default function CategoryProductsPage({
             <h1 className="text-3xl font-bold text-gray-900">{categoryName}</h1>
           </div>
           <p className="mt-2 text-gray-600">
-            {products.length} {products.length === 1 ? 'product' : 'products'} found in this category
+            {products.length} {products.length === 1 ? "product" : "products"}{" "}
+            found in this category
           </p>
         </div>
       </div>
@@ -92,7 +97,7 @@ export default function CategoryProductsPage({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {products.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {products.map(product => (
+            {products.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -106,12 +111,14 @@ export default function CategoryProductsPage({
         ) : (
           <div className="text-center py-12">
             <div className="bg-gray-200 border-2 border-dashed rounded-xl w-16 h-16 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No products found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">
+              No products found
+            </h3>
             <p className="text-gray-500">
               There are currently no products in the {categoryName} category.
             </p>
             <button
-              onClick={() => onNavigate('categories')}
+              onClick={() => onNavigate("categories")}
               className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
             >
               Browse Other Categories
