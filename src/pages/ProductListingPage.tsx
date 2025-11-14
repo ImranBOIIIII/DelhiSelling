@@ -3,6 +3,8 @@ import { SlidersHorizontal, X, Grid, List } from "lucide-react";
 import { Product } from "../types";
 import ProductCard from "../components/ProductCard";
 import firebaseService from "../services/firebaseService";
+import SEO from "../components/SEO";
+import { getPageSEO } from "../utils/seo";
 
 interface ProductListingPageProps {
   products: Product[];
@@ -126,8 +128,11 @@ export default function ProductListingPage({
     selectedConditions.length > 0 ||
     selectedStorage.length > 0;
 
+  const productsSEO = getPageSEO('products');
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...productsSEO} />
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <h1 className="text-3xl font-bold text-gray-900">All Products</h1>

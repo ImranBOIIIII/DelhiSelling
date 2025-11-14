@@ -3,6 +3,8 @@ import { Package, TrendingUp, Shield, Truck, Mail, Phone } from 'lucide-react';
 import { redirectToWhatsApp } from '../utils/whatsappUtils';
 import ProductCard from '../components/ProductCard';
 import { Product } from '../types';
+import SEO from '../components/SEO';
+import { getPageSEO } from '../utils/seo';
 
 interface BulkDealsPageProps {
   products: Product[];
@@ -71,8 +73,11 @@ export default function BulkDealsPage({
     setMessage('');
   };
 
+  const dealsSEO = getPageSEO('deals');
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...dealsSEO} />
       {/* Hero */}
       <section className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

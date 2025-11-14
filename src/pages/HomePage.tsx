@@ -11,6 +11,8 @@ import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Product, Category } from "../types";
 import ProductCard from "../components/ProductCard";
+import SEO from "../components/SEO";
+import { getPageSEO } from "../utils/seo";
 // Replace localStorage-based adminService with Firebase admin service
 import firebaseAdminService from "../services/firebaseAdminService";
 import firebaseService from "../services/firebaseService";
@@ -152,8 +154,11 @@ export default function HomePage({
     );
   }
 
+  const homeSEO = getPageSEO('home');
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...homeSEO} />
       {/* Sliding Image Banner */}
       <section className="relative h-56 sm:h-64 md:h-80 lg:h-96 overflow-hidden">
         <div className="relative w-full h-full">

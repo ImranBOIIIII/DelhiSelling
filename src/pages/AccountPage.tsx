@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Settings, Package, Heart, MapPin, LogOut } from 'lucide-react';
+import { User, Package, Heart, MapPin, LogOut } from 'lucide-react';
 import ProfileSection from '../components/account/ProfileSection';
 import OrderHistory from '../components/account/OrderHistory';
 import WishlistSection from '../components/account/WishlistSection';
 import AddressManagement from '../components/account/AddressManagement';
+import SEO from '../components/SEO';
+import { getPageSEO } from '../utils/seo';
 // Replace localStorage-based authService with Firebase auth service
 import firebaseAuthService from '../services/firebaseAuthService';
 
@@ -63,8 +65,11 @@ export default function AccountPage({ onNavigate, wishlistIds, onToggleWishlist 
     }
   };
 
+  const accountSEO = getPageSEO('account');
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...accountSEO} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-4 gap-8">
           {/* Sidebar Navigation */}

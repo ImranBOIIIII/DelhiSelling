@@ -3,6 +3,8 @@ import { Package, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Category, Product } from '../types';
 import firebaseAdminService from '../services/firebaseAdminService';
+import SEO from '../components/SEO';
+import { getPageSEO } from '../utils/seo';
 
 interface CategoriesPageProps {
   categories?: Category[];
@@ -127,8 +129,11 @@ export default function CategoriesPage({ categories, onNavigate }: CategoriesPag
   // Use passed categories or fallback to hardcoded ones
   const displayCategories = categories && categories.length > 0 ? categories : bagCategories;
   
+  const categoriesSEO = getPageSEO('categories');
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...categoriesSEO} />
       {/* Categories Grid */}
       <section className="py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

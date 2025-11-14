@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { Product } from '../types';
+import SEO from '../components/SEO';
 
 interface SearchResultsPageProps {
   products: Product[];
@@ -62,6 +63,11 @@ export default function SearchResultsPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO 
+        title={`Search Results for "${query}"`}
+        description={`Found ${sortedProducts.length} products matching "${query}". Browse wholesale bags at Delhi Selling.`}
+        noindex={true}
+      />
       {/* Search Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

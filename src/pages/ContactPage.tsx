@@ -2,6 +2,8 @@ import { Mail, Phone, Package, TrendingUp, Users, Headphones } from 'lucide-reac
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { redirectToWhatsApp } from '../utils/whatsappUtils';
+import SEO from '../components/SEO';
+import { getPageSEO } from '../utils/seo';
 
 export default function ContactPage() {
   const navigate = useNavigate();
@@ -29,8 +31,11 @@ export default function ContactPage() {
     setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
   };
 
+  const contactSEO = getPageSEO('contact');
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...contactSEO} />
       <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold mb-4">Contact Us</h1>

@@ -1,8 +1,9 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Plus, Minus, ShoppingBag, Shield, Truck } from 'lucide-react';
 import { CartItem } from '../types';
 import authService from '../services/authService';
+import SEO from '../components/SEO';
+import { getPageSEO } from '../utils/seo';
 
 interface CartPageProps {
   cartItems: CartItem[];
@@ -32,13 +33,12 @@ export default function CartPage({
     }
   };
 
-  const handleProductClick = (productId: string) => {
-    navigate(`/product/${productId}`);
-  };
+  const cartSEO = getPageSEO('cart');
 
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <SEO {...cartSEO} />
         <div className="text-center">
           <ShoppingBag className="w-24 h-24 text-gray-300 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
@@ -56,6 +56,7 @@ export default function CartPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...cartSEO} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Shopping Cart</h1>
 

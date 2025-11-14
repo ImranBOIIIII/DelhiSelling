@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Product } from "../types";
+import SEO from "../components/SEO";
+import { getProductSEO, generateProductSchema, generateBreadcrumbSchema } from "../utils/seo";
 
 interface ProductDetailPageProps {
   product: Product;
@@ -38,6 +40,33 @@ export default function ProductDetailPage({
       )
     : 0;
 
+  // Generate SEO data
+  const productSEO = getProductSEO(
+    product.name,
+    product.description,
+    product.price,
+    product.category,
+    product.images[0]
+  );
+
+  const productSchema = generateProductSchema({
+    id: product.slug,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    image: product.images[0],
+    category: product.category,
+    inStock: product.stockQuantity > 0,
+    rating: product.rating,
+    reviewCount: product.reviewCount
+  });
+
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: 'Home', url: '/' },
+    { name: 'Products', url: '/products' },
+    { name: product.name, url: `/product/${product.slug}` }
+  ]);
+
   const nextImage = () => {
     setSelectedImageIndex((prev) =>
       prev === product.images.length - 1 ? 0 : prev + 1,
@@ -52,6 +81,7 @@ export default function ProductDetailPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...productSEO} schemaData={[productSchema, breadcrumbSchema]} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link
           to="/products"

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Product } from "../types";
 import ProductCard from "../components/ProductCard";
+import SEO from "../components/SEO";
+import { getCategorySEO, generateBreadcrumbSchema } from "../utils/seo";
 // Replace localStorage-based adminService with Firebase admin service
 import firebaseAdminService from "../services/firebaseAdminService";
 import firebaseService from "../services/firebaseService";
@@ -60,6 +62,19 @@ export default function CategoryProductsPage({
     };
   }, [categoryId]);
 
+  // Generate SEO data
+  const categorySEO = getCategorySEO(
+    categoryName,
+    `Browse our collection of ${categoryName} products at wholesale prices.`,
+    products.length
+  );
+
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: 'Home', url: '/' },
+    { name: 'Categories', url: '/categories' },
+    { name: categoryName, url: `/category/${categoryId}` }
+  ]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -73,6 +88,7 @@ export default function CategoryProductsPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO {...categorySEO} schemaData={breadcrumbSchema} />
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
