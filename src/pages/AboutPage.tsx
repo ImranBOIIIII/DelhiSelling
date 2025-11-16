@@ -132,7 +132,7 @@ export default function AboutPage() {
                 </span>
               </div>
               <p className="text-sm mb-4">
-                Your trusted destination for premium mobile phones. Quality products, unbeatable prices, and exceptional service.
+                India's First Direct Factory to Dealers Platform.
               </p>
               <div className="flex space-x-4">
                 <a href="#" className="hover:text-blue-400 transition-colors">

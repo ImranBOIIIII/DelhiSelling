@@ -65,23 +65,23 @@ export default function Header({
               <SearchBar products={products} />
             </div>
 
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3 md:space-x-6">
               <button
                 onClick={handleAccountClick}
-                className="hidden md:flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors"
+                className="flex items-center text-gray-700 hover:text-blue-600 transition-colors"
               >
-                <User className="w-5 h-5" />
-                <span className="text-sm font-medium">
+                <User className="w-5 h-5 md:w-5 md:h-5" />
+                <span className="text-sm font-medium hidden md:inline ml-1">
                   {isLoggedIn ? "Account" : "Login"}
                 </span>
               </button>
 
               <button
                 onClick={onToggleCart}
-                className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors relative"
+                className="flex items-center text-gray-700 hover:text-blue-600 transition-colors relative"
               >
-                <ShoppingCart className="w-5 h-5" />
-                <span className="text-sm font-medium hidden sm:inline">
+                <ShoppingCart className="w-5 h-5 md:w-5 md:h-5" />
+                <span className="text-sm font-medium hidden sm:inline ml-1">
                   Cart
                 </span>
                 {cartItemCount > 0 && (
@@ -150,6 +150,25 @@ export default function Header({
             >
               Contact
             </Link>
+
+            <div className="hidden lg:block h-6 w-px bg-gray-300"></div>
+
+            <Link
+              to="/seller-registration"
+              className={`hidden lg:block text-sm font-medium whitespace-nowrap transition-colors hover:text-blue-600 ${
+                isActive("/seller-registration") ? "text-blue-600" : "text-gray-700"
+              }`}
+            >
+              Become a Seller
+            </Link>
+            <Link
+              to="/dropshipping-registration"
+              className={`hidden lg:block text-sm font-medium whitespace-nowrap transition-colors hover:text-blue-600 ${
+                isActive("/dropshipping-registration") ? "text-blue-600" : "text-gray-700"
+              }`}
+            >
+              Dropshipping
+            </Link>
           </div>
         </div>
       </nav>
@@ -157,15 +176,20 @@ export default function Header({
       {isMobileMenuOpen && (
         <div className="md:hidden bg-white border-b border-gray-100 py-4">
           <div className="max-w-7xl mx-auto px-4 space-y-3">
-            <button
-              onClick={handleAccountClick}
-              className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors w-full"
+            <Link
+              to="/seller-registration"
+              className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
-              <User className="w-5 h-5" />
-              <span className="text-sm font-medium">
-                {isLoggedIn ? "Account" : "Login"}
-              </span>
-            </button>
+              <span className="text-sm font-medium">Seller Registration</span>
+            </Link>
+            <Link
+              to="/dropshipping-registration"
+              className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 transition-colors"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <span className="text-sm font-medium">Dropshipping Registration</span>
+            </Link>
           </div>
         </div>
       )}

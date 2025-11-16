@@ -27,6 +27,9 @@ import CategoryProductsPage from "./pages/CategoryProductsPage";
 import BulkDealsPage from "./pages/BulkDealsPage";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import AdminLayout from "./components/AdminLayout";
+import SellerRegistrationPage from "./pages/SellerRegistrationPage";
+import SellerDashboardPage from "./pages/SellerDashboardPage";
+import SellerLoginPage from "./pages/SellerLoginPage";
 import { categories as mockCategories } from "./data/mockData";
 import { Product, CartItem, Category } from "./types";
 import { getPageSEO } from "./utils/seo";
@@ -218,6 +221,9 @@ function AppContent() {
             }
           />
           <Route path="/login" element={<LoginScreen />} />
+          <Route path="/seller-registration" element={<SellerRegistrationPage />} />
+          <Route path="/seller-login" element={<SellerLoginPage />} />
+          <Route path="/seller/dashboard" element={<SellerDashboardPage />} />
           <Route
             path="/404"
             element={
