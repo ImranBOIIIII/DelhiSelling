@@ -102,21 +102,23 @@ export default function SellerRegistrationPage() {
         return;
       }
       
-      // Add new seller
+      // Add new seller with pending approval status
       const newSeller = {
         id: Date.now().toString(),
         ...formData,
         registeredAt: new Date().toISOString(),
+        status: "pending", // pending, approved, rejected
+        approvedAt: null,
+        approvedBy: null,
+        rejectionReason: null,
       };
       sellers.push(newSeller);
       localStorage.setItem("sellers", JSON.stringify(sellers));
       
-      // Set current seller session
-      localStorage.setItem("currentSeller", JSON.stringify(newSeller));
-      
       setIsSubmitting(false);
-      // Navigate to seller dashboard
-      navigate("/seller/dashboard");
+      // Show success message and redirect to login
+      alert("Registration successful! Your account is pending admin approval. You will be notified once approved.");
+      navigate("/seller-login");
     }, 1500);
   };
 

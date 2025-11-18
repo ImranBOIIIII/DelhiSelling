@@ -20,6 +20,8 @@ import {
 // Replace localStorage-based adminService with Firebase admin service
 import firebaseAdminService from "../services/firebaseAdminService";
 import { AdminOrder, AdminUser } from "../types";
+import AdminUsers from "./AdminUsers";
+import AdminDashboard from "./AdminDashboard";
 
 interface AdminLayoutProps {
   onNavigateToSite?: () => void;
@@ -77,14 +79,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ onNavigateToSite }) => {
   };
 
   const navItems = [
-    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { name: "Homepage", href: "/admin/homepage", icon: Home },
-    { name: "Products", href: "/admin/products", icon: Package },
-    { name: "Categories", href: "/admin/categories", icon: Folder },
-    { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
-    { name: "Users", href: "/admin/users", icon: Users },
-    { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
-    { name: "Settings", href: "/admin/settings", icon: Settings },
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard, color: "#f87171" },
+    { name: "Homepage", href: "/admin/homepage", icon: Home, color: "#60a5fa" },
+    { name: "Products", href: "/admin/products", icon: Package, color: "#a78bfa" },
+    { name: "Categories", href: "/admin/categories", icon: Folder, color: "#34d399" },
+    { name: "Orders", href: "/admin/orders", icon: ShoppingCart, color: "#d4a574" },
+    { name: "Users", href: "/admin/users", icon: Users, color: "#fb923c" },
+    { name: "Analytics", href: "/admin/analytics", icon: BarChart3, color: "#60a5fa" },
+    { name: "Settings", href: "/admin/settings", icon: Settings, color: "#94a3b8" },
   ];
 
   if (!currentAdmin) {
@@ -132,41 +134,23 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ onNavigateToSite }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col md:flex-row">
-      {/* Mobile header with menu button */}
-      <div className="md:hidden bg-white shadow-sm p-4 flex items-center justify-between">
-        <div className="flex items-center">
-          <LayoutDashboard className="h-8 w-8 text-indigo-600" />
-          <h1 className="ml-3 text-xl font-bold text-gray-900">Admin Panel</h1>
-        </div>
-        <button
-          onClick={toggleSidebar}
-          className="p-2 rounded-md text-gray-700 hover:bg-gray-100"
-        >
-          {isSidebarOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </button>
-      </div>
-
+    <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <div
-        className={`fixed md:relative z-20 inset-y-0 left-0 transform ${
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 transition-transform duration-300 ease-in-out w-64 bg-white shadow-lg flex flex-col`}
-      >
-        <div className="p-6 border-b border-gray-200 hidden md:block">
-          <div className="flex items-center">
-            <LayoutDashboard className="h-8 w-8 text-indigo-600" />
-            <h1 className="ml-3 text-xl font-bold text-gray-900">
-              Admin Panel
-            </h1>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 shadow-lg transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`} style={{ backgroundColor: '#1a1a1a' }}>
+        {/* Profile Section */}
+        <div className="flex items-center space-x-3 h-16 px-4 border-b" style={{ borderColor: '#2a2a2a' }}>
+          <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
+            <LayoutDashboard className="w-6 h-6" />
           </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-white font-medium block truncate">Admin Panel</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-gray-400 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="py-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
@@ -175,70 +159,67 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ onNavigateToSite }) => {
                 key={item.name}
                 onClick={() => {
                   navigate(item.href);
-                  // Close sidebar on mobile after navigation
                   if (window.innerWidth < 768) {
                     setIsSidebarOpen(false);
                   }
                 }}
-                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                className={`w-full flex items-center space-x-3 px-6 py-2.5 transition-colors ${
                   isActive
-                    ? "bg-indigo-100 text-indigo-700"
-                    : "text-gray-600 hover:bg-gray-100"
+                    ? "text-white bg-[#252525] border-l-4"
+                    : "text-gray-400 hover:text-white hover:bg-[#252525]"
                 }`}
+                style={isActive ? { borderLeftColor: item.color } : {}}
               >
-                <Icon
-                  className={`h-5 w-5 mr-3 ${isActive ? "text-indigo-500" : "text-gray-400"}`}
-                />
-                <span className="truncate">{item.name}</span>
+                <Icon className="w-5 h-5" style={{ color: item.color }} />
+                <span className="text-sm">{item.name}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="absolute bottom-0 w-full py-4 border-t space-y-1" style={{ borderColor: '#2a2a2a' }}>
+          {onNavigateToSite && (
+            <button
+              onClick={onNavigateToSite}
+              className="w-full flex items-center space-x-3 px-6 py-2.5 text-gray-400 hover:text-white hover:bg-[#252525] transition-colors"
+            >
+              <Home className="w-5 h-5" />
+              <span className="text-sm">View Site</span>
+            </button>
+          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center space-x-3 px-6 py-2.5 text-gray-400 hover:text-white hover:bg-[#252525] transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="text-sm">Logout</span>
+          </button>
+          <div className="px-6 py-2 border-t" style={{ borderColor: '#2a2a2a' }}>
             <div className="flex items-center space-x-3">
-              <User className="h-8 w-8 text-gray-500" />
-              <div className="hidden md:block">
-                <p className="text-sm font-medium text-gray-700">
-                  {currentAdmin.fullName}
-                </p>
-                <p className="text-xs text-gray-500">{currentAdmin.role}</p>
+              <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-xs">
+                {currentAdmin.fullName?.charAt(0).toUpperCase() || "A"}
               </div>
-            </div>
-            <div className="flex space-x-1">
-              {onNavigateToSite && (
-                <button
-                  onClick={onNavigateToSite}
-                  className="p-2 text-gray-400 hover:text-gray-600"
-                  title="View Site"
-                >
-                  <Home className="h-4 w-4" />
-                </button>
-              )}
-              <button
-                onClick={handleLogout}
-                className="p-2 text-gray-400 hover:text-gray-600"
-                title="Logout"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{currentAdmin.fullName}</p>
+                <p className="text-xs text-gray-400 truncate">{currentAdmin.role}</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Overlay for mobile */}
-      {isSidebarOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-10 bg-black bg-opacity-50"
-          onClick={toggleSidebar}
-        ></div>
-      )}
+      {/* Main Content */}
+      <div className="lg:ml-64">
+        {/* Mobile Menu Button */}
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-white rounded-lg shadow-md text-gray-700"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col">
-        <main className="flex-1 p-4 md:p-6 overflow-auto bg-gray-100">
+        {/* Dashboard Content */}
+        <main className="p-4 sm:p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<AdminDashboard />} />
             <Route path="/homepage" element={<AdminHomepage />} />
@@ -791,68 +772,6 @@ const CategoryForm = ({
           </form>
         </div>
       </div>
-    </div>
-  );
-};
-
-// Dashboard Component
-const AdminDashboard = () => {
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      const data = await firebaseAdminService.getDashboardData();
-      setDashboardData(data);
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        Loading dashboard...
-      </div>
-    );
-  }
-
-  const stats = dashboardData?.stats || {};
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-semibold mb-4">Dashboard Overview</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-blue-900">Total Products</h4>
-            <p className="text-2xl font-bold text-blue-600">
-              {stats.totalProducts || 0}
-            </p>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-green-900">Total Orders</h4>
-            <p className="text-2xl font-bold text-green-600">
-              {stats.totalOrders || 0}
-            </p>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-purple-900">Total Users</h4>
-            <p className="text-2xl font-bold text-purple-600">
-              {stats.totalUsers || 0}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Add more dashboard components here */}
     </div>
   );
 };
@@ -3391,29 +3310,6 @@ const OrderStatusModal = ({
           >
             Update Status
           </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Users Management Component
-const AdminUsers = () => {
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-semibold text-gray-900">
-          Users Management
-        </h3>
-        <p className="text-gray-600 mt-1">
-          Manage registered users and their accounts
-        </p>
-      </div>
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-6">
-          <p className="text-gray-600">
-            User management functionality will be implemented here.
-          </p>
         </div>
       </div>
     </div>

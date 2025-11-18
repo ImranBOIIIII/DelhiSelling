@@ -13,6 +13,7 @@ import Footer from "./components/Footer";
 import CartSidebar from "./components/CartSidebar";
 import ScrollToTop from "./components/ScrollToTop";
 import SEO from "./components/SEO";
+import UpdateNotification from "./components/UpdateNotification";
 import HomePage from "./pages/HomePage";
 import ProductListingPage from "./pages/ProductListingPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
@@ -223,7 +224,8 @@ function AppContent() {
           <Route path="/login" element={<LoginScreen />} />
           <Route path="/seller-registration" element={<SellerRegistrationPage />} />
           <Route path="/seller-login" element={<SellerLoginPage />} />
-          <Route path="/seller/dashboard" element={<SellerDashboardPage />} />
+          <Route path="/seller/dashboard" element={<Navigate to="/seller/dashboard/home" replace />} />
+          <Route path="/seller/dashboard/:tab" element={<SellerDashboardPage />} />
           <Route
             path="/404"
             element={

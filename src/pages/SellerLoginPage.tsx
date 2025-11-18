@@ -45,9 +45,22 @@ export default function SellerLoginPage() {
       setIsSubmitting(false);
       
       if (seller) {
-        // Store current seller session
-        localStorage.setItem("currentSeller", JSON.stringify(seller));
-        navigate("/seller/dashboard");
+        // Check approval status
+        if (seller.status === "pending") {
+          setErrors({ email: "Your account is pending admin approval. Please wait for approval." });
+        } else if (seller.status === "rejected") {
+          setErrors({ email: `Your account was rejected. Reason: ${seller.rejectionReason || "Not specified"}` });
+        } else if (seller.status === "suspended") {
+          setErrors({ email: `Your account has been suspended. Reason: ${seller.suspendReason || "Not specified"}. Please contact support.` });
+        } else if (seller.status === "terminated") {
+          setErrors({ email: `Your account has been terminated. Reason: ${seller.terminateReason || "Not specified"}. Please contact support.` });
+        } else if (seller.status === "approved") {
+          // Store current seller session
+          localStorage.setItem("currentSeller", JSON.stringify(seller));
+          navigate("/seller/dashboard/home");
+        } else {
+          setErrors({ email: "Account status unknown. Please contact support." });
+        }
       } else {
         setErrors({ email: "Invalid email or password" });
       }

@@ -1,16 +1,39 @@
 import { useState, useEffect } from "react";
 import { 
   LayoutDashboard, Package, ShoppingCart, TrendingUp, Users, 
-  LogOut, Menu, X, Search, DollarSign,
+  LogOut, Menu, X, Search, DollarSign, Bell,
   Eye, Edit, Trash2, Plus, BarChart3, Headphones,
   MessageSquare, Send, CheckCircle, Clock
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 export default function SellerDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const { tab } = useParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState(tab || "home");
   const [currentSeller, setCurrentSeller] = useState<any>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationCount] = useState(3);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [productForm, setProductForm] = useState({
+    name: "",
+    brand: "",
+    model: "",
+    description: "",
+    category: "",
+    price: 0,
+    originalPrice: 0,
+    material: "",
+    size: "",
+    color: "",
+    stockQuantity: 0,
+    minOrderQuantity: 1,
+    condition: "new" as "new" | "used" | "refurbished",
+    images: [] as string[]
+  });
+  const [imageUrl, setImageUrl] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
   const navigate = useNavigate();
 
   // Check if seller is logged in
@@ -22,6 +45,15 @@ export default function SellerDashboardPage() {
       setCurrentSeller(JSON.parse(seller));
     }
   }, [navigate]);
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    if (tab) {
+      setActiveTab(tab);
+    } else {
+      setActiveTab("home");
+    }
+  }, [tab]);
 
   const handleLogout = () => {
     localStorage.removeItem("currentSeller");
@@ -42,14 +74,37 @@ export default function SellerDashboardPage() {
     { id: "#ORD-004", customer: "Sneha Patel", product: "Handbag", amount: "₹1,799", status: "Pending", date: "2024-01-13" },
   ];
 
-  const products = [
+  const [products, setProducts] = useState([
     { id: 1, name: "Leather Wallet", category: "Accessories", price: "₹799", stock: 45, sales: 128, image: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=100&h=100&fit=crop" },
     { id: 2, name: "Cotton T-Shirt", category: "Clothing", price: "₹599", stock: 89, sales: 256, image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=100&h=100&fit=crop" },
     { id: 3, name: "Running Shoes", category: "Footwear", price: "₹2,999", stock: 23, sales: 67, image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100&h=100&fit=crop" },
-  ];
+  ]);
+
+  // Load products from localStorage on mount
+  useEffect(() => {
+    const savedProducts = localStorage.getItem("sellerProducts");
+    if (savedProducts) {
+      const parsedProducts = JSON.parse(savedProducts);
+      // Filter products for current seller
+      const sellerProducts = parsedProducts.filter((p: any) => p.sellerId === currentSeller?.email);
+      if (sellerProducts.length > 0) {
+        // Format products to match the display format
+        const formattedProducts = sellerProducts.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          price: `₹${p.price}`,
+          stock: p.stockQuantity,
+          sales: p.sales || 0,
+          image: p.images[0] || "https://via.placeholder.com/100"
+        }));
+        setProducts(formattedProducts);
+      }
+    }
+  }, [currentSeller]);
 
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, color: "#f87171" },
+    { id: "home", label: "Home", icon: LayoutDashboard, color: "#f87171" },
     { id: "products", label: "Products", icon: Package, color: "#a78bfa" },
     { id: "orders", label: "Orders", icon: ShoppingCart, color: "#d4a574" },
     { id: "returns", label: "Returns", icon: TrendingUp, color: "#ef4444" },
@@ -68,6 +123,161 @@ export default function SellerDashboardPage() {
     }
   };
 
+  const handleProductSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate required fields
+    if (!productForm.name || !productForm.brand || !productForm.category || !productForm.description) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    if (productForm.price <= 0) {
+      alert("Please enter a valid price");
+      return;
+    }
+
+    if (productForm.stockQuantity <= 0) {
+      alert("Please enter a valid stock quantity");
+      return;
+    }
+
+    // Get existing products from localStorage
+    const existingProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
+    
+    if (selectedProduct) {
+      // Edit existing product
+      const updatedProduct = {
+        ...selectedProduct,
+        ...productForm,
+        updatedAt: new Date().toISOString()
+      };
+      
+      const updatedProducts = existingProducts.map((p: any) => 
+        p.id === selectedProduct.id ? updatedProduct : p
+      );
+      
+      localStorage.setItem("sellerProducts", JSON.stringify(updatedProducts));
+      
+      // Update display
+      const formattedProduct = {
+        id: updatedProduct.id,
+        name: updatedProduct.name,
+        category: updatedProduct.category,
+        price: `₹${updatedProduct.price}`,
+        stock: updatedProduct.stockQuantity,
+        sales: updatedProduct.sales || 0,
+        image: updatedProduct.images[0] || "https://via.placeholder.com/100"
+      };
+      
+      setProducts(products.map(p => p.id === selectedProduct.id ? formattedProduct : p));
+      alert("Product updated successfully!");
+    } else {
+      // Create new product with unique ID
+      const newProduct = {
+        ...productForm,
+        id: Date.now(),
+        sellerId: currentSeller?.email || "unknown",
+        createdAt: new Date().toISOString(),
+        sales: 0
+      };
+
+      // Add to products array
+      existingProducts.push(newProduct);
+      
+      // Save to localStorage
+      localStorage.setItem("sellerProducts", JSON.stringify(existingProducts));
+
+      // Update the products display
+      const formattedProduct = {
+        id: newProduct.id,
+        name: newProduct.name,
+        category: newProduct.category,
+        price: `₹${newProduct.price}`,
+        stock: newProduct.stockQuantity,
+        sales: 0,
+        image: newProduct.images[0] || "https://via.placeholder.com/100"
+      };
+      setProducts([...products, formattedProduct]);
+      alert("Product added successfully!");
+    }
+
+    // Reset form
+    setProductForm({
+      name: "",
+      brand: "",
+      model: "",
+      description: "",
+      category: "",
+      price: 0,
+      originalPrice: 0,
+      material: "",
+      size: "",
+      color: "",
+      stockQuantity: 0,
+      minOrderQuantity: 1,
+      condition: "new",
+      images: []
+    });
+    setImageUrl("");
+    setSelectedProduct(null);
+
+    // Close modal
+    setShowProductModal(false);
+    
+    // Switch to products tab to see the product
+    navigate("/seller/dashboard/products");
+  };
+
+  const handleViewProduct = (product: any) => {
+    // Get full product details from localStorage
+    const savedProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
+    const fullProduct = savedProducts.find((p: any) => p.id === product.id);
+    setSelectedProduct(fullProduct || product);
+    setShowViewModal(true);
+  };
+
+  const handleEditProduct = (product: any) => {
+    // Get full product details from localStorage
+    const savedProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
+    const fullProduct = savedProducts.find((p: any) => p.id === product.id);
+    
+    if (fullProduct) {
+      // Populate the form with existing product data
+      setProductForm({
+        name: fullProduct.name,
+        brand: fullProduct.brand,
+        model: fullProduct.model || "",
+        description: fullProduct.description,
+        category: fullProduct.category,
+        price: fullProduct.price,
+        originalPrice: fullProduct.originalPrice || 0,
+        material: fullProduct.material || "",
+        size: fullProduct.size || "",
+        color: fullProduct.color || "",
+        stockQuantity: fullProduct.stockQuantity,
+        minOrderQuantity: fullProduct.minOrderQuantity,
+        condition: fullProduct.condition,
+        images: fullProduct.images || []
+      });
+      setSelectedProduct(fullProduct);
+      setShowProductModal(true);
+    }
+  };
+
+  const handleDeleteProduct = (product: any) => {
+    if (confirm(`Are you sure you want to delete "${product.name}"?`)) {
+      // Remove from localStorage
+      const savedProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
+      const updatedProducts = savedProducts.filter((p: any) => p.id !== product.id);
+      localStorage.setItem("sellerProducts", JSON.stringify(updatedProducts));
+      
+      // Update state
+      setProducts(products.filter(p => p.id !== product.id));
+      alert("Product deleted successfully!");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -77,8 +287,65 @@ export default function SellerDashboardPage() {
           <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center text-white font-semibold">
             {currentSeller?.ownerName?.charAt(0).toUpperCase() || "S"}
           </div>
-          <span className="text-white font-medium">{currentSeller?.storeName || "Seller"}</span>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden ml-auto text-gray-400 hover:text-white">
+          <div className="flex-1 min-w-0">
+            <span className="text-white font-medium block truncate">{currentSeller?.storeName || "Seller"}</span>
+          </div>
+          <div className="relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 text-gray-400 hover:text-white hover:bg-[#252525] rounded-lg transition-colors"
+            >
+              <Bell className="w-5 h-5" />
+              {notificationCount > 0 && (
+                <span className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                  {notificationCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border z-50" style={{ borderColor: '#e5e7eb' }}>
+                <div className="p-4 border-b" style={{ borderColor: '#f3f4f6' }}>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-gray-900">Notifications</h3>
+                    <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">Mark all read</button>
+                  </div>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  {[
+                    { id: 1, title: 'New Order Received', message: 'Order #ORD-156 has been placed', time: '5 min ago', unread: true, icon: ShoppingCart, color: 'bg-blue-100 text-blue-600' },
+                    { id: 2, title: 'Payment Received', message: 'Payment of ₹2,499 credited', time: '1 hour ago', unread: true, icon: DollarSign, color: 'bg-green-100 text-green-600' },
+                    { id: 3, title: 'Low Stock Alert', message: 'Running Shoes stock is low', time: '3 hours ago', unread: true, icon: Package, color: 'bg-orange-100 text-orange-600' },
+                  ].map((notification) => (
+                    <div 
+                      key={notification.id}
+                      className={`p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors ${notification.unread ? 'bg-blue-50' : ''}`}
+                      style={{ borderColor: '#f3f4f6' }}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className={`p-2 rounded-lg ${notification.color}`}>
+                          <notification.icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                          <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                          <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                        </div>
+                        {notification.unread && (
+                          <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-3 border-t text-center" style={{ borderColor: '#f3f4f6' }}>
+                  <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">View all notifications</button>
+                </div>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-gray-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -100,7 +367,7 @@ export default function SellerDashboardPage() {
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => navigate(`/seller/dashboard/${item.id}`)}
               className={`w-full flex items-center space-x-3 px-6 py-2.5 transition-colors ${
                 activeTab === item.id
                   ? "text-white bg-[#252525] border-l-4"
@@ -116,7 +383,7 @@ export default function SellerDashboardPage() {
 
         <div className="absolute bottom-0 w-full py-4 border-t space-y-1" style={{ borderColor: '#2a2a2a' }}>
           <button
-            onClick={() => setActiveTab("support")}
+            onClick={() => navigate("/seller/dashboard/support")}
             className={`w-full flex items-center space-x-3 px-6 py-2.5 transition-colors ${
               activeTab === "support"
                 ? "text-white bg-[#252525] border-l-4 border-l-[#6366f1]"
@@ -148,7 +415,7 @@ export default function SellerDashboardPage() {
 
         {/* Dashboard Content */}
         <main className="p-4 sm:p-6 lg:p-8">
-          {activeTab === "dashboard" && (
+          {activeTab === "home" && (
             <>
               {/* Welcome Header */}
               <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -239,13 +506,14 @@ export default function SellerDashboardPage() {
                   <h3 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h3>
                   <div className="space-y-3">
                     {[
-                      { label: 'Add Product', icon: Plus, color: 'bg-blue-500' },
-                      { label: 'View Orders', icon: ShoppingCart, color: 'bg-green-500' },
-                      { label: 'Analytics', icon: BarChart3, color: 'bg-purple-500' },
-                      { label: 'Support', icon: Headphones, color: 'bg-orange-500' }
+                      { label: 'Add Product', icon: Plus, color: 'bg-blue-500', action: () => { navigate('/seller/dashboard/products'); setShowProductModal(true); } },
+                      { label: 'View Orders', icon: ShoppingCart, color: 'bg-green-500', action: () => navigate('/seller/dashboard/orders') },
+                      { label: 'Analytics', icon: BarChart3, color: 'bg-purple-500', action: () => navigate('/seller/dashboard/analytics') },
+                      { label: 'Support', icon: Headphones, color: 'bg-orange-500', action: () => navigate('/seller/dashboard/support') }
                     ].map((action, index) => (
                       <button
                         key={index}
+                        onClick={action.action}
                         className="w-full flex items-center space-x-3 p-4 bg-white border-2 rounded-xl hover:border-purple-300 hover:shadow-md transition-all group"
                         style={{ borderColor: '#e5e7eb' }}
                       >
@@ -394,7 +662,10 @@ export default function SellerDashboardPage() {
                   <h2 className="text-2xl font-bold text-gray-900 mb-1">Products</h2>
                   <p className="text-sm text-gray-500">Manage your product inventory and track performance</p>
                 </div>
-                <button className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md font-medium">
+                <button 
+                  onClick={() => setShowProductModal(true)}
+                  className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md font-medium"
+                >
                   <Plus className="w-5 h-5" />
                   <span>Add Product</span>
                 </button>
@@ -464,13 +735,25 @@ export default function SellerDashboardPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end space-x-2">
-                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View">
+                              <button 
+                                onClick={() => handleViewProduct(product)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
+                                title="View"
+                              >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                              <button 
+                                onClick={() => handleEditProduct(product)}
+                                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" 
+                                title="Edit"
+                              >
                                 <Edit className="w-4 h-4" />
                               </button>
-                              <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                              <button 
+                                onClick={() => handleDeleteProduct(product)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" 
+                                title="Delete"
+                              >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -1378,6 +1661,454 @@ export default function SellerDashboardPage() {
           )}
         </main>
       </div>
+
+      {/* Add Product Form */}
+      {showProductModal && (
+        <div className="fixed inset-0 bg-white z-40 lg:ml-64 overflow-y-auto">
+          {/* Header */}
+          <div className="bg-white border-b px-6 py-4 flex items-center justify-between" style={{ borderColor: '#e5e7eb' }}>
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => {
+                  setShowProductModal(false);
+                  setSelectedProduct(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {selectedProduct ? 'Edit Product' : 'Add New Product'}
+              </h2>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProductModal(false);
+                  setSelectedProduct(null);
+                }}
+                className="px-4 py-2 border rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                style={{ borderColor: '#e5e7eb' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="product-form"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                {selectedProduct ? 'Update Product' : 'Add Product'}
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="bg-gray-50 p-6">
+            <form id="product-form" onSubmit={handleProductSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
+              {/* Left Column */}
+              <div className="space-y-6">
+                {/* Product Details Card */}
+                <div className="bg-white rounded-xl border p-6" style={{ borderColor: '#e5e7eb' }}>
+                  <div className="flex items-center space-x-2 mb-6">
+                    <h3 className="text-base font-semibold text-gray-900">Product Details</h3>
+                    <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                      <span className="text-xs text-gray-500">?</span>
+                    </div>
+                  </div>
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Product Name *</label>
+                      <input
+                        type="text"
+                        value={productForm.name}
+                        onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                        placeholder="Enter product name"
+                        className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        style={{ borderColor: '#e5e7eb' }}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Brand *</label>
+                        <input
+                          type="text"
+                          value={productForm.brand}
+                          onChange={(e) => setProductForm({...productForm, brand: e.target.value})}
+                          placeholder="e.g., Nike, Apple"
+                          className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                          style={{ borderColor: '#e5e7eb' }}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Model</label>
+                        <input
+                          type="text"
+                          value={productForm.model}
+                          onChange={(e) => setProductForm({...productForm, model: e.target.value})}
+                          placeholder="Model number"
+                          className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                          style={{ borderColor: '#e5e7eb' }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Category *</label>
+                      <select
+                        value={productForm.category}
+                        onChange={(e) => setProductForm({...productForm, category: e.target.value})}
+                        className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        style={{ borderColor: '#e5e7eb' }}
+                        required
+                      >
+                        <option value="">Select Category</option>
+                        <option value="Clothing">Clothing</option>
+                        <option value="Footwear">Footwear</option>
+                        <option value="Accessories">Accessories</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Home & Kitchen">Home & Kitchen</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
+                      <textarea
+                        value={productForm.description}
+                        onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                        rows={5}
+                        placeholder="Describe your product in detail..."
+                        className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none transition-all"
+                        style={{ borderColor: '#e5e7eb' }}
+                        required
+                      />
+                      <p className="mt-2 text-xs text-gray-500">Provide detailed information about features, specifications, and benefits</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing */}
+                <div className="bg-white rounded-xl border shadow-sm p-6" style={{ borderColor: '#e5e7eb' }}>
+                  <h3 className="text-lg font-bold text-gray-900 mb-6 pb-4 border-b" style={{ borderColor: '#f3f4f6' }}>Pricing</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Price (₹) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={productForm.price}
+                      onChange={(e) => setProductForm({...productForm, price: parseFloat(e.target.value) || 0})}
+                      className="w-full px-4 py-2.5 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      style={{ borderColor: '#e5e7eb' }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Original Price (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={productForm.originalPrice}
+                      onChange={(e) => setProductForm({...productForm, originalPrice: parseFloat(e.target.value) || 0})}
+                      className="w-full px-4 py-2.5 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      style={{ borderColor: '#e5e7eb' }}
+                    />
+                  </div>
+                </div>
+              </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-6">
+                {/* Product Images */}
+                <div className="bg-white rounded-xl border p-6bmake the quick actions working in dashboard tab" style={{ borderColor: '#e5e7eb' }}>
+                  <h3 className="text-base font-semibold text-gray-900 mb-4">Product Images</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+                      <div className="flex space-x-2">
+                        <input
+                          type="url"
+                          value={imageUrl}
+                          onChange={(e) => setImageUrl(e.target.value)}
+                          placeholder="https://example.com/image.jpg"
+                          className="flex-1 px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                          style={{ borderColor: '#e5e7eb' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (imageUrl.trim()) {
+                              setProductForm({...productForm, images: [...productForm.images, imageUrl.trim()]});
+                              setImageUrl("");
+                            }
+                          }}
+                          className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">Add image URLs one at a time</p>
+                    </div>
+
+                    {/* Image Preview Grid */}
+                    {productForm.images.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Added Images ({productForm.images.length})
+                        </label>
+                        <div className="grid grid-cols-3 gap-3">
+                          {productForm.images.map((img, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={img}
+                                alt={`Product ${index + 1}`}
+                                className="w-full h-24 object-cover rounded-lg border-2"
+                                style={{ borderColor: '#e5e7eb' }}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=Invalid+URL';
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProductForm({
+                                    ...productForm,
+                                    images: productForm.images.filter((_, i) => i !== index)
+                                  });
+                                }}
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                              {index === 0 && (
+                                <div className="absolute bottom-1 left-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded">
+                                  Primary
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {productForm.images.length === 0 && (
+                      <div className="border-2 border-dashed rounded-lg p-8 text-center" style={{ borderColor: '#e5e7eb' }}>
+                        <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">No images added yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Add product images using URLs above</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Product Details */}
+                <div className="bg-white rounded-xl border p-6" style={{ borderColor: '#e5e7eb' }}>
+                  <h3 className="text-base font-semibold text-gray-900 mb-4">Product Details</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Material</label>
+                      <input
+                        type="text"
+                        value={productForm.material}
+                        onChange={(e) => setProductForm({...productForm, material: e.target.value})}
+                        placeholder="e.g., Leather, Cotton"
+                        className="w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        style={{ borderColor: '#e5e7eb' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Size</label>
+                      <input
+                        type="text"
+                        value={productForm.size}
+                        onChange={(e) => setProductForm({...productForm, size: e.target.value})}
+                        placeholder="e.g., Medium, Large"
+                        className="w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        style={{ borderColor: '#e5e7eb' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                      <input
+                        type="text"
+                        value={productForm.color}
+                        onChange={(e) => setProductForm({...productForm, color: e.target.value})}
+                        placeholder="e.g., Black, Blue"
+                        className="w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        style={{ borderColor: '#e5e7eb' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inventory */}
+                <div className="bg-white rounded-xl border p-6" style={{ borderColor: '#e5e7eb' }}>
+                  <h3 className="text-base font-semibold text-gray-900 mb-4">Inventory</h3>
+                  <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Stock Quantity *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={productForm.stockQuantity}
+                      onChange={(e) => setProductForm({...productForm, stockQuantity: parseInt(e.target.value) || 0})}
+                      className="w-full px-4 py-2.5 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      style={{ borderColor: '#e5e7eb' }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Min Order Quantity *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={productForm.minOrderQuantity}
+                      onChange={(e) => setProductForm({...productForm, minOrderQuantity: parseInt(e.target.value) || 1})}
+                      className="w-full px-4 py-2.5 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      style={{ borderColor: '#e5e7eb' }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Condition</label>
+                    <select
+                      value={productForm.condition}
+                      onChange={(e) => setProductForm({...productForm, condition: e.target.value as any})}
+                      className="w-full px-4 py-2.5 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      style={{ borderColor: '#e5e7eb' }}
+                    >
+                      <option value="new">New</option>
+                      <option value="used">Used</option>
+                      <option value="refurbished">Refurbished</option>
+                    </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Product Modal */}
+      {showViewModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between" style={{ borderColor: '#e5e7eb' }}>
+              <h2 className="text-xl font-bold text-gray-900">Product Details</h2>
+              <button 
+                onClick={() => setShowViewModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Product Images */}
+              {selectedProduct.images && selectedProduct.images.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Product Images</h3>
+                  <div className="grid grid-cols-4 gap-3">
+                    {selectedProduct.images.map((img: string, index: number) => (
+                      <img
+                        key={index}
+                        src={img}
+                        alt={`${selectedProduct.name} ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-lg border-2"
+                        style={{ borderColor: '#e5e7eb' }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Product Info Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Product Name</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.name}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Brand</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.brand}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Category</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.category}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Model</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.model || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Price</label>
+                  <p className="text-sm font-bold text-gray-900 mt-1">₹{selectedProduct.price}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Original Price</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">
+                    {selectedProduct.originalPrice ? `₹${selectedProduct.originalPrice}` : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Stock Quantity</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.stockQuantity}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Min Order Quantity</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.minOrderQuantity}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Condition</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1 capitalize">{selectedProduct.condition}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Material</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.material || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Size</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.size || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Color</label>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.color || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Description</label>
+                <p className="text-sm text-gray-700 mt-2 leading-relaxed">{selectedProduct.description}</p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t" style={{ borderColor: '#e5e7eb' }}>
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    handleEditProduct(selectedProduct);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Edit Product
+                </button>
+                <button
+                  onClick={() => setShowViewModal(false)}
+                  className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                  style={{ borderColor: '#e5e7eb' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
