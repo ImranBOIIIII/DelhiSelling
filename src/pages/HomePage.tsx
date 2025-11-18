@@ -13,6 +13,7 @@ import { Product, Category } from "../types";
 import ProductCard from "../components/ProductCard";
 import SEO from "../components/SEO";
 import { getPageSEO } from "../utils/seo";
+import DoodleUnderline from "../components/DoodleUnderline";
 // Replace localStorage-based adminService with Firebase admin service
 import firebaseAdminService from "../services/firebaseAdminService";
 import firebaseService from "../services/firebaseService";
@@ -254,7 +255,11 @@ export default function HomePage({
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h2 className="text-3xl font-bold text-gray-900">
-                  Shop by Category
+                  Shop by{" "}
+                  <span className="inline-block relative">
+                    Category
+                    <DoodleUnderline className="absolute left-0 right-0 -bottom-1" />
+                  </span>
                 </h2>
                 <p className="text-gray-600 mt-2">
                   Explore our collection of premium bag categories
@@ -323,7 +328,11 @@ export default function HomePage({
           <div className="flex justify-between items-center mb-8">
             <div>
               <h2 className="text-3xl font-bold text-gray-900">
-                Featured Products
+                Featured{" "}
+                <span className="inline-block relative">
+                  Products
+                  <DoodleUnderline className="absolute left-0 right-0 -bottom-1" />
+                </span>
               </h2>
               <p className="text-gray-600 mt-2">
                 Handpicked selections just for you
@@ -357,7 +366,13 @@ export default function HomePage({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900">New Arrivals</h2>
+              <h2 className="text-3xl font-bold text-gray-900">
+                New{" "}
+                <span className="inline-block relative">
+                  Arrivals
+                  <DoodleUnderline className="absolute left-0 right-0 -bottom-1" />
+                </span>
+              </h2>
               <p className="text-gray-600 mt-2">
                 Latest additions to our collection
               </p>
