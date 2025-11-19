@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Store, MapPin, User, Lock, Building } from "lucide-react";
+import sellerService from "../services/sellerService";
 
 export default function SellerRegistrationPage() {
   const navigate = useNavigate();
@@ -90,36 +91,36 @@ export default function SellerRegistrationPage() {
 
     setIsSubmitting(true);
     
-    // Save seller data to localStorage
-    setTimeout(() => {
-      const sellers = JSON.parse(localStorage.getItem("sellers") || "[]");
-      
-      // Check if email already exists
-      const existingSeller = sellers.find((s: any) => s.email === formData.email);
-      if (existingSeller) {
-        setErrors({ email: "Email already registered" });
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Add new seller with pending approval status
-      const newSeller = {
-        id: Date.now().toString(),
-        ...formData,
-        registeredAt: new Date().toISOString(),
-        status: "pending", // pending, approved, rejected
-        approvedAt: null,
-        approvedBy: null,
-        rejectionReason: null,
-      };
-      sellers.push(newSeller);
-      localStorage.setItem("sellers", JSON.stringify(sellers));
+    try {
+      // Register seller in Firebase
+      await sellerService.registerSeller({
+        email: formData.email,
+        ownerName: formData.ownerName,
+        storeName: formData.storeName,
+        phone: formData.contactNumber,
+        address: formData.address,
+        city: formData.district,
+        state: formData.state,
+        pincode: formData.pincode,
+        gstNumber: formData.gstNumber,
+        panNumber: formData.ownerPan,
+        businessType: formData.businessType,
+        isActive: true,
+        isVerified: false,
+      });
       
       setIsSubmitting(false);
-      // Show success message and redirect to login
-      alert("Registration successful! Your account is pending admin approval. You will be notified once approved.");
+      alert("Registration successful! Your account is pending admin approval. You will be able to login once an administrator verifies your account.");
       navigate("/seller-login");
-    }, 1500);
+    } catch (error: any) {
+      setIsSubmitting(false);
+      if (error.message.includes("already exists")) {
+        setErrors({ email: "Email already registered" });
+      } else {
+        alert("Registration failed. Please try again.");
+      }
+      console.error("Registration error:", error);
+    }
   };
 
   return (

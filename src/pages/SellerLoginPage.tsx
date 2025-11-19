@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Store, Lock, Mail } from "lucide-react";
+import sellerService from "../services/sellerService";
 
 export default function SellerLoginPage() {
   const navigate = useNavigate();
@@ -37,34 +38,35 @@ export default function SellerLoginPage() {
 
     setIsSubmitting(true);
     
-    // Check if seller exists in localStorage
-    const sellers = JSON.parse(localStorage.getItem("sellers") || "[]");
-    const seller = sellers.find((s: any) => s.email === formData.email && s.password === formData.password);
-
-    setTimeout(() => {
+    try {
+      // Login seller using Firebase
+      const seller = await sellerService.loginSeller(formData.email, formData.password);
+      
       setIsSubmitting(false);
       
       if (seller) {
-        // Check approval status
-        if (seller.status === "pending") {
-          setErrors({ email: "Your account is pending admin approval. Please wait for approval." });
-        } else if (seller.status === "rejected") {
-          setErrors({ email: `Your account was rejected. Reason: ${seller.rejectionReason || "Not specified"}` });
-        } else if (seller.status === "suspended") {
-          setErrors({ email: `Your account has been suspended. Reason: ${seller.suspendReason || "Not specified"}. Please contact support.` });
-        } else if (seller.status === "terminated") {
-          setErrors({ email: `Your account has been terminated. Reason: ${seller.terminateReason || "Not specified"}. Please contact support.` });
-        } else if (seller.status === "approved") {
-          // Store current seller session
-          localStorage.setItem("currentSeller", JSON.stringify(seller));
-          navigate("/seller/dashboard/home");
-        } else {
-          setErrors({ email: "Account status unknown. Please contact support." });
+        // Check if seller is verified (approved by admin)
+        if (!seller.isVerified) {
+          setErrors({ email: "Your account is pending admin approval. Please wait for verification." });
+          return;
         }
+        
+        // Check if seller is active
+        if (!seller.isActive) {
+          setErrors({ email: "Your account has been deactivated. Please contact support." });
+          return;
+        }
+        
+        // Navigate to dashboard
+        navigate("/seller/dashboard/home");
       } else {
         setErrors({ email: "Invalid email or password" });
       }
-    }, 1000);
+    } catch (error: any) {
+      setIsSubmitting(false);
+      setErrors({ email: error.message || "Login failed. Please try again." });
+      console.error("Login error:", error);
+    }
   };
 
   return (

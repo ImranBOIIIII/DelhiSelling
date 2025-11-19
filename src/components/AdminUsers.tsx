@@ -1,83 +1,103 @@
 import { useState, useEffect } from "react";
 import { CheckCircle, XCircle, Eye, Clock, Store } from "lucide-react";
+import sellerService from "../services/sellerService";
 
 export default function AdminUsers() {
   const [sellers, setSellers] = useState<any[]>([]);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected" | "suspended" | "terminated">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSeller, setSelectedSeller] = useState<any>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [showSuspendModal, setShowSuspendModal] = useState(false);
-  const [suspendReason, setSuspendReason] = useState("");
-  const [showTerminateModal, setShowTerminateModal] = useState(false);
-  const [terminateReason, setTerminateReason] = useState("");
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivationReason, setDeactivationReason] = useState("");
 
   useEffect(() => {
     loadSellers();
   }, []);
 
-  const loadSellers = () => {
-    const sellersData = JSON.parse(localStorage.getItem("sellers") || "[]");
-    setSellers(sellersData);
+  const loadSellers = async () => {
+    try {
+      const sellersData = await sellerService.getAllSellers();
+      setSellers(sellersData);
+    } catch (error) {
+      console.error("Error loading sellers:", error);
+      alert("Failed to load sellers");
+    }
   };
 
   const filteredSellers = sellers.filter((seller) => {
-    const matchesFilter = filter === "all" || seller.status === filter;
+    const matchesFilter = 
+      filter === "all" || 
+      (filter === "active" && seller.isActive) ||
+      (filter === "inactive" && !seller.isActive);
+    
     const matchesSearch =
-      seller.storeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      seller.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      seller.ownerName.toLowerCase().includes(searchQuery.toLowerCase());
+      seller.storeName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      seller.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      seller.ownerName?.toLowerCase().includes(searchQuery.toLowerCase());
+    
     return matchesFilter && matchesSearch;
   });
 
-  const handleApprove = (sellerId: string) => {
-    if (!confirm("Are you sure you want to approve this seller?")) return;
+  const handleApprove = async (sellerId: string) => {
+    if (!confirm("Are you sure you want to approve and activate this seller?")) return;
 
-    const updatedSellers = sellers.map((seller) =>
-      seller.id === sellerId
-        ? {
-            ...seller,
-            status: "approved",
-            approvedAt: new Date().toISOString(),
-            approvedBy: "admin",
-          }
-        : seller
-    );
-
-    localStorage.setItem("sellers", JSON.stringify(updatedSellers));
-    setSellers(updatedSellers);
-    alert("Seller approved successfully!");
+    try {
+      await sellerService.approveSeller(sellerId);
+      await loadSellers();
+      alert("Seller approved successfully!");
+    } catch (error) {
+      console.error("Error approving seller:", error);
+      alert("Failed to approve seller");
+    }
   };
 
-  const handleReject = (sellerId: string) => {
+  const handleDeactivate = (sellerId: string) => {
     const seller = sellers.find((s) => s.id === sellerId);
     setSelectedSeller(seller);
-    setShowRejectModal(true);
+    setShowDeactivateModal(true);
   };
 
-  const confirmReject = () => {
+  const confirmDeactivate = async () => {
     if (!selectedSeller) return;
 
-    const updatedSellers = sellers.map((seller) =>
-      seller.id === selectedSeller.id
-        ? {
-            ...seller,
-            status: "rejected",
-            rejectionReason: rejectionReason || "Not specified",
-            rejectedAt: new Date().toISOString(),
-            rejectedBy: "admin",
-          }
-        : seller
-    );
+    try {
+      await sellerService.deactivateSeller(selectedSeller.id, deactivationReason);
+      await loadSellers();
+      setShowDeactivateModal(false);
+      setDeactivationReason("");
+      setSelectedSeller(null);
+      alert("Seller deactivated successfully!");
+    } catch (error) {
+      console.error("Error deactivating seller:", error);
+      alert("Failed to deactivate seller");
+    }
+  };
 
-    localStorage.setItem("sellers", JSON.stringify(updatedSellers));
-    setSellers(updatedSellers);
-    setShowRejectModal(false);
-    setRejectionReason("");
-    setSelectedSeller(null);
-    alert("Seller rejected successfully!");
+  const handleActivate = async (sellerId: string) => {
+    if (!confirm("Are you sure you want to activate this seller?")) return;
+
+    try {
+      await sellerService.activateSeller(sellerId);
+      await loadSellers();
+      alert("Seller activated successfully!");
+    } catch (error) {
+      console.error("Error activating seller:", error);
+      alert("Failed to activate seller");
+    }
+  };
+
+  const handleDelete = async (sellerId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this seller? This action cannot be undone.")) return;
+
+    try {
+      await sellerService.deleteSeller(sellerId);
+      await loadSellers();
+      alert("Seller deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting seller:", error);
+      alert("Failed to delete seller");
+    }
   };
 
   const handleViewDetails = (seller: any) => {
@@ -85,130 +105,36 @@ export default function AdminUsers() {
     setShowDetailsModal(true);
   };
 
-  const handleSuspend = (sellerId: string) => {
-    const seller = sellers.find((s) => s.id === sellerId);
-    setSelectedSeller(seller);
-    setShowSuspendModal(true);
-  };
 
-  const confirmSuspend = () => {
-    if (!selectedSeller) return;
 
-    const updatedSellers = sellers.map((seller) =>
-      seller.id === selectedSeller.id
-        ? {
-            ...seller,
-            status: "suspended",
-            suspendReason: suspendReason || "Not specified",
-            suspendedAt: new Date().toISOString(),
-            suspendedBy: "admin",
-          }
-        : seller
-    );
-
-    localStorage.setItem("sellers", JSON.stringify(updatedSellers));
-    setSellers(updatedSellers);
-    setShowSuspendModal(false);
-    setSuspendReason("");
-    setSelectedSeller(null);
-    alert("Seller suspended successfully!");
-  };
-
-  const handleTerminate = (sellerId: string) => {
-    const seller = sellers.find((s) => s.id === sellerId);
-    setSelectedSeller(seller);
-    setShowTerminateModal(true);
-  };
-
-  const confirmTerminate = () => {
-    if (!selectedSeller) return;
-
-    const updatedSellers = sellers.map((seller) =>
-      seller.id === selectedSeller.id
-        ? {
-            ...seller,
-            status: "terminated",
-            terminateReason: terminateReason || "Not specified",
-            terminatedAt: new Date().toISOString(),
-            terminatedBy: "admin",
-          }
-        : seller
-    );
-
-    localStorage.setItem("sellers", JSON.stringify(updatedSellers));
-    setSellers(updatedSellers);
-    setShowTerminateModal(false);
-    setTerminateReason("");
-    setSelectedSeller(null);
-    alert("Seller terminated successfully!");
-  };
-
-  const handleReactivate = (sellerId: string) => {
-    if (!confirm("Are you sure you want to reactivate this seller?")) return;
-
-    const updatedSellers = sellers.map((seller) =>
-      seller.id === sellerId
-        ? {
-            ...seller,
-            status: "approved",
-            reactivatedAt: new Date().toISOString(),
-            reactivatedBy: "admin",
-          }
-        : seller
-    );
-
-    localStorage.setItem("sellers", JSON.stringify(updatedSellers));
-    setSellers(updatedSellers);
-    alert("Seller reactivated successfully!");
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
-            <Clock className="w-3 h-3 mr-1" />
-            Pending
-          </span>
-        );
-      case "approved":
-        return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Approved
-          </span>
-        );
-      case "rejected":
-        return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-            <XCircle className="w-3 h-3 mr-1" />
-            Rejected
-          </span>
-        );
-      case "suspended":
-        return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
-            <XCircle className="w-3 h-3 mr-1" />
-            Suspended
-          </span>
-        );
-      case "terminated":
-        return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
-            <XCircle className="w-3 h-3 mr-1" />
-            Terminated
-          </span>
-        );
-      default:
-        return null;
+  const getStatusBadge = (seller: any) => {
+    if (seller.isActive && seller.isVerified) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Active & Verified
+        </span>
+      );
+    } else if (seller.isActive && !seller.isVerified) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+          <Clock className="w-3 h-3 mr-1" />
+          Active (Unverified)
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+          <XCircle className="w-3 h-3 mr-1" />
+          Inactive
+        </span>
+      );
     }
   };
 
-  const pendingCount = sellers.filter((s) => s.status === "pending").length;
-  const approvedCount = sellers.filter((s) => s.status === "approved").length;
-  const rejectedCount = sellers.filter((s) => s.status === "rejected").length;
-  const suspendedCount = sellers.filter((s) => s.status === "suspended").length;
-  const terminatedCount = sellers.filter((s) => s.status === "terminated").length;
+  const activeCount = sellers.filter((s) => s.isActive).length;
+  const inactiveCount = sellers.filter((s) => !s.isActive).length;
+  const verifiedCount = sellers.filter((s) => s.isVerified).length;
 
   return (
     <div className="space-y-6">
@@ -226,30 +152,21 @@ export default function AdminUsers() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total</p>
+                <p className="text-sm text-gray-600">Total Sellers</p>
                 <p className="text-2xl font-bold text-gray-900">{sellers.length}</p>
               </div>
               <Store className="w-8 h-8 text-gray-400" />
             </div>
           </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-yellow-700">Pending</p>
-                <p className="text-2xl font-bold text-yellow-900">{pendingCount}</p>
-              </div>
-              <Clock className="w-8 h-8 text-yellow-400" />
-            </div>
-          </div>
           <div className="bg-green-50 p-4 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-green-700">Approved</p>
-                <p className="text-2xl font-bold text-green-900">{approvedCount}</p>
+                <p className="text-sm text-green-700">Active</p>
+                <p className="text-2xl font-bold text-green-900">{activeCount}</p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-400" />
             </div>
@@ -257,28 +174,19 @@ export default function AdminUsers() {
           <div className="bg-red-50 p-4 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-red-700">Rejected</p>
-                <p className="text-2xl font-bold text-red-900">{rejectedCount}</p>
+                <p className="text-sm text-red-700">Inactive</p>
+                <p className="text-2xl font-bold text-red-900">{inactiveCount}</p>
               </div>
               <XCircle className="w-8 h-8 text-red-400" />
             </div>
           </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
+          <div className="bg-blue-50 p-4 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-orange-700">Suspended</p>
-                <p className="text-2xl font-bold text-orange-900">{suspendedCount}</p>
+                <p className="text-sm text-blue-700">Verified</p>
+                <p className="text-2xl font-bold text-blue-900">{verifiedCount}</p>
               </div>
-              <XCircle className="w-8 h-8 text-orange-400" />
-            </div>
-          </div>
-          <div className="bg-gray-100 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-700">Terminated</p>
-                <p className="text-2xl font-bold text-gray-900">{terminatedCount}</p>
-              </div>
-              <XCircle className="w-8 h-8 text-gray-500" />
+              <CheckCircle className="w-8 h-8 text-blue-400" />
             </div>
           </div>
         </div>
@@ -307,11 +215,8 @@ export default function AdminUsers() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">All Sellers</option>
-              <option value="pending">Pending Approval</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="suspended">Suspended</option>
-              <option value="terminated">Terminated</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
             </select>
           </div>
         </div>
@@ -386,7 +291,7 @@ export default function AdminUsers() {
                       {new Date(seller.registeredAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(seller.status)}
+                      {getStatusBadge(seller)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex flex-wrap gap-2">
@@ -397,51 +302,39 @@ export default function AdminUsers() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {seller.status === "pending" && (
-                          <>
-                            <button
-                              onClick={() => handleApprove(seller.id)}
-                              className="text-green-600 hover:text-green-900"
-                              title="Approve"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleReject(seller.id)}
-                              className="text-red-600 hover:text-red-900"
-                              title="Reject"
-                            >
-                              <XCircle className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                        {seller.status === "approved" && (
-                          <>
-                            <button
-                              onClick={() => handleSuspend(seller.id)}
-                              className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
-                              title="Suspend"
-                            >
-                              Suspend
-                            </button>
-                            <button
-                              onClick={() => handleTerminate(seller.id)}
-                              className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                              title="Terminate"
-                            >
-                              Terminate
-                            </button>
-                          </>
-                        )}
-                        {(seller.status === "suspended" || seller.status === "terminated") && (
+                        {!seller.isVerified && (
                           <button
-                            onClick={() => handleReactivate(seller.id)}
-                            className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                            title="Reactivate"
+                            onClick={() => handleApprove(seller.id)}
+                            className="text-green-600 hover:text-green-900"
+                            title="Approve & Verify"
                           >
-                            Reactivate
+                            <CheckCircle className="w-4 h-4" />
                           </button>
                         )}
+                        {seller.isActive ? (
+                          <button
+                            onClick={() => handleDeactivate(seller.id)}
+                            className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            title="Deactivate"
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActivate(seller.id)}
+                            className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                            title="Activate"
+                          >
+                            Activate
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(seller.id)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Delete"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -478,7 +371,7 @@ export default function AdminUsers() {
                 </h4>
                 <div className="flex flex-col space-y-2">
                   <div className="flex items-center space-x-2">
-                    {getStatusBadge(selectedSeller.status)}
+                    {getStatusBadge(selectedSeller)}
                   </div>
                   {selectedSeller.status === "approved" && selectedSeller.approvedAt && (
                     <span className="text-sm text-gray-500">
@@ -632,102 +525,87 @@ export default function AdminUsers() {
 
               {/* Actions */}
               <div className="flex justify-end space-x-3 pt-4 border-t">
-                {selectedSeller.status === "pending" && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowDetailsModal(false);
-                        handleReject(selectedSeller.id);
-                      }}
-                      className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleApprove(selectedSeller.id);
-                        setShowDetailsModal(false);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                    >
-                      Approve Seller
-                    </button>
-                  </>
-                )}
-                {selectedSeller.status === "approved" && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowDetailsModal(false);
-                        handleSuspend(selectedSeller.id);
-                      }}
-                      className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
-                    >
-                      Suspend
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowDetailsModal(false);
-                        handleTerminate(selectedSeller.id);
-                      }}
-                      className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
-                    >
-                      Terminate
-                    </button>
-                  </>
-                )}
-                {(selectedSeller.status === "suspended" || selectedSeller.status === "terminated") && (
+                {!selectedSeller.isVerified && (
                   <button
                     onClick={() => {
-                      handleReactivate(selectedSeller.id);
+                      handleApprove(selectedSeller.id);
                       setShowDetailsModal(false);
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                   >
-                    Reactivate Seller
+                    Approve & Verify
                   </button>
                 )}
+                {selectedSeller.isActive ? (
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      handleDeactivate(selectedSeller.id);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  >
+                    Deactivate
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      handleActivate(selectedSeller.id);
+                      setShowDetailsModal(false);
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    Activate
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    handleDelete(selectedSeller.id);
+                  }}
+                  className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Reject Modal */}
-      {showRejectModal && selectedSeller && (
+      {/* Deactivate Modal */}
+      {showDeactivateModal && selectedSeller && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-md">
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">
-                Reject Seller
+                Deactivate Seller
               </h3>
             </div>
 
             <div className="p-6">
               <p className="text-sm text-gray-600 mb-4">
-                Are you sure you want to reject{" "}
+                Are you sure you want to deactivate{" "}
                 <span className="font-semibold">{selectedSeller.storeName}</span>?
               </p>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Rejection Reason *
+                  Deactivation Reason (Optional)
                 </label>
                 <textarea
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
+                  value={deactivationReason}
+                  onChange={(e) => setDeactivationReason(e.target.value)}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Enter reason for rejection..."
-                  required
+                  placeholder="Enter reason for deactivation..."
                 />
               </div>
 
               <div className="flex justify-end space-x-3 mt-6">
                 <button
                   onClick={() => {
-                    setShowRejectModal(false);
-                    setRejectionReason("");
+                    setShowDeactivateModal(false);
+                    setDeactivationReason("");
                     setSelectedSeller(null);
                   }}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
@@ -735,127 +613,10 @@ export default function AdminUsers() {
                   Cancel
                 </button>
                 <button
-                  onClick={confirmReject}
-                  disabled={!rejectionReason.trim()}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  onClick={confirmDeactivate}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                 >
-                  Confirm Rejection
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Suspend Modal */}
-      {showSuspendModal && selectedSeller && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Suspend Seller
-              </h3>
-            </div>
-
-            <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4">
-                Are you sure you want to suspend{" "}
-                <span className="font-semibold">{selectedSeller.storeName}</span>?
-                <br />
-                <span className="text-xs text-gray-500">
-                  Suspended sellers cannot access their dashboard but can be reactivated later.
-                </span>
-              </p>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Suspension Reason *
-                </label>
-                <textarea
-                  value={suspendReason}
-                  onChange={(e) => setSuspendReason(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Enter reason for suspension..."
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => {
-                    setShowSuspendModal(false);
-                    setSuspendReason("");
-                    setSelectedSeller(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmSuspend}
-                  disabled={!suspendReason.trim()}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  Confirm Suspension
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Terminate Modal */}
-      {showTerminateModal && selectedSeller && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Terminate Seller
-              </h3>
-            </div>
-
-            <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4">
-                Are you sure you want to terminate{" "}
-                <span className="font-semibold">{selectedSeller.storeName}</span>?
-                <br />
-                <span className="text-xs text-red-600 font-medium">
-                  ⚠️ This is a serious action. Terminated sellers can be reactivated but this indicates a severe violation.
-                </span>
-              </p>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Termination Reason *
-                </label>
-                <textarea
-                  value={terminateReason}
-                  onChange={(e) => setTerminateReason(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  placeholder="Enter reason for termination..."
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => {
-                    setShowTerminateModal(false);
-                    setTerminateReason("");
-                    setSelectedSeller(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmTerminate}
-                  disabled={!terminateReason.trim()}
-                  className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  Confirm Termination
+                  Confirm Deactivation
                 </button>
               </div>
             </div>

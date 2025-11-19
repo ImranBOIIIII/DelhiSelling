@@ -370,6 +370,14 @@ export default function ProductDetailPage({
                   {product.model}
                 </span>
               </div>
+              {(product as any).seller && (
+                <div className="flex py-3 border-b border-neutral-100">
+                  <span className="text-sm text-neutral-600 w-1/2">Seller</span>
+                  <span className="text-sm text-neutral-900 font-medium w-1/2">
+                    {(product as any).seller}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import {
   MessageSquare, Send, CheckCircle, Clock
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import sellerService from "../services/sellerService";
 
 export default function SellerDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -60,47 +61,73 @@ export default function SellerDashboardPage() {
     navigate("/");
   };
 
-  const stats = [
-    { label: "Total Revenue", value: "₹1,24,500", change: "+12.5%", icon: DollarSign, color: "bg-green-500" },
-    { label: "Total Orders", value: "156", change: "+8.2%", icon: ShoppingCart, color: "bg-blue-500" },
-    { label: "Products", value: "48", change: "+3", icon: Package, color: "bg-purple-500" },
-    { label: "Customers", value: "892", change: "+15.3%", icon: Users, color: "bg-orange-500" },
-  ];
-
-  const recentOrders = [
-    { id: "#ORD-001", customer: "Rahul Sharma", product: "Leather Bag", amount: "₹2,499", status: "Delivered", date: "2024-01-15" },
-    { id: "#ORD-002", customer: "Priya Singh", product: "Cotton Shirt", amount: "₹899", status: "Processing", date: "2024-01-14" },
-    { id: "#ORD-003", customer: "Amit Kumar", product: "Sports Shoes", amount: "₹3,299", status: "Shipped", date: "2024-01-14" },
-    { id: "#ORD-004", customer: "Sneha Patel", product: "Handbag", amount: "₹1,799", status: "Pending", date: "2024-01-13" },
-  ];
-
-  const [products, setProducts] = useState([
-    { id: 1, name: "Leather Wallet", category: "Accessories", price: "₹799", stock: 45, sales: 128, image: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=100&h=100&fit=crop" },
-    { id: 2, name: "Cotton T-Shirt", category: "Clothing", price: "₹599", stock: 89, sales: 256, image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=100&h=100&fit=crop" },
-    { id: 3, name: "Running Shoes", category: "Footwear", price: "₹2,999", stock: 23, sales: 67, image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100&h=100&fit=crop" },
+  const [products, setProducts] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [stats, setStats] = useState([
+    { label: "Total Revenue", value: "₹0", change: "+0%", icon: DollarSign, color: "bg-green-500" },
+    { label: "Total Orders", value: "0", change: "+0%", icon: ShoppingCart, color: "bg-blue-500" },
+    { label: "Products", value: "0", change: "+0", icon: Package, color: "bg-purple-500" },
+    { label: "Customers", value: "0", change: "+0%", icon: Users, color: "bg-orange-500" },
   ]);
 
-  // Load products from localStorage on mount
+  // Load products and orders from Firebase on mount
   useEffect(() => {
-    const savedProducts = localStorage.getItem("sellerProducts");
-    if (savedProducts) {
-      const parsedProducts = JSON.parse(savedProducts);
-      // Filter products for current seller
-      const sellerProducts = parsedProducts.filter((p: any) => p.sellerId === currentSeller?.email);
-      if (sellerProducts.length > 0) {
-        // Format products to match the display format
-        const formattedProducts = sellerProducts.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          category: p.category,
-          price: `₹${p.price}`,
-          stock: p.stockQuantity,
-          sales: p.sales || 0,
-          image: p.images[0] || "https://via.placeholder.com/100"
-        }));
-        setProducts(formattedProducts);
+    if (!currentSeller) return;
+
+    const loadData = async () => {
+      try {
+        // Load products from Firebase
+        const sellerProducts = await sellerService.getSellerProducts(currentSeller.email);
+        
+        if (sellerProducts.length > 0) {
+          // Format products to match the display format
+          const formattedProducts = sellerProducts.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            price: `₹${p.price}`,
+            stock: p.stockQuantity,
+            sales: p.sales || 0,
+            image: p.images[0] || "https://via.placeholder.com/100",
+            rawPrice: p.price
+          }));
+          setProducts(formattedProducts);
+        }
+
+        // Load orders from localStorage (keeping this for now)
+        const savedOrders = localStorage.getItem("admin_orders");
+        if (savedOrders) {
+          const parsedOrders = JSON.parse(savedOrders);
+          // Filter orders for current seller's products
+          const sellerOrders = parsedOrders.filter((order: any) => {
+            // Check if any item in the order belongs to this seller
+            return order.items?.some((item: any) => item.sellerId === currentSeller?.email);
+          });
+          setOrders(sellerOrders);
+
+          // Calculate stats
+          const totalRevenue = sellerOrders.reduce((sum: number, order: any) => {
+            const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+            const orderTotal = sellerItems.reduce((itemSum: number, item: any) => 
+              itemSum + (item.price * item.quantity), 0);
+            return sum + orderTotal;
+          }, 0);
+
+          const uniqueCustomers = new Set(sellerOrders.map((order: any) => order.userId)).size;
+
+          setStats([
+            { label: "Total Revenue", value: `₹${totalRevenue.toLocaleString('en-IN')}`, change: "+12.5%", icon: DollarSign, color: "bg-green-500" },
+            { label: "Total Orders", value: sellerOrders.length.toString(), change: "+8.2%", icon: ShoppingCart, color: "bg-blue-500" },
+            { label: "Products", value: sellerProducts.length.toString(), change: `+${sellerProducts.length}`, icon: Package, color: "bg-purple-500" },
+            { label: "Customers", value: uniqueCustomers.toString(), change: "+15.3%", icon: Users, color: "bg-orange-500" },
+          ]);
+        }
+      } catch (error) {
+        console.error("Error loading seller data:", error);
       }
-    }
+    };
+
+    loadData();
   }, [currentSeller]);
 
   const menuItems = [
@@ -123,7 +150,7 @@ export default function SellerDashboardPage() {
     }
   };
 
-  const handleProductSubmit = (e: React.FormEvent) => {
+  const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate required fields
@@ -142,64 +169,90 @@ export default function SellerDashboardPage() {
       return;
     }
 
-    // Get existing products from localStorage
-    const existingProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
-    
     if (selectedProduct) {
-      // Edit existing product
-      const updatedProduct = {
-        ...selectedProduct,
-        ...productForm,
-        updatedAt: new Date().toISOString()
-      };
-      
-      const updatedProducts = existingProducts.map((p: any) => 
-        p.id === selectedProduct.id ? updatedProduct : p
-      );
-      
-      localStorage.setItem("sellerProducts", JSON.stringify(updatedProducts));
-      
-      // Update display
-      const formattedProduct = {
-        id: updatedProduct.id,
-        name: updatedProduct.name,
-        category: updatedProduct.category,
-        price: `₹${updatedProduct.price}`,
-        stock: updatedProduct.stockQuantity,
-        sales: updatedProduct.sales || 0,
-        image: updatedProduct.images[0] || "https://via.placeholder.com/100"
-      };
-      
-      setProducts(products.map(p => p.id === selectedProduct.id ? formattedProduct : p));
-      alert("Product updated successfully!");
+      // Edit existing product in Firebase
+      try {
+        await sellerService.updateProduct(selectedProduct.id, {
+          name: productForm.name,
+          description: productForm.description,
+          price: productForm.price,
+          originalPrice: productForm.originalPrice || productForm.price,
+          category: productForm.category,
+          brand: productForm.brand,
+          model: productForm.model || "",
+          images: productForm.images,
+          stockQuantity: productForm.stockQuantity,
+          minOrderQuantity: productForm.minOrderQuantity,
+          condition: productForm.condition,
+          material: productForm.material || "",
+          size: productForm.size || "",
+          color: productForm.color || "",
+        });
+        
+        // Update display
+        const formattedProduct = {
+          id: selectedProduct.id,
+          name: productForm.name,
+          category: productForm.category,
+          price: `₹${productForm.price}`,
+          stock: productForm.stockQuantity,
+          sales: selectedProduct.sales || 0,
+          image: productForm.images[0] || "https://via.placeholder.com/100"
+        };
+        
+        setProducts(products.map(p => p.id === selectedProduct.id ? formattedProduct : p));
+        alert("Product updated successfully!");
+      } catch (error) {
+        console.error("Error updating product:", error);
+        alert("Failed to update product. Please try again.");
+      }
     } else {
-      // Create new product with unique ID
-      const newProduct = {
-        ...productForm,
-        id: Date.now(),
-        sellerId: currentSeller?.email || "unknown",
-        createdAt: new Date().toISOString(),
-        sales: 0
-      };
+      // Create new product in Firebase
+      try {
+        const newProduct = await sellerService.addProduct({
+          name: productForm.name,
+          description: productForm.description,
+          price: productForm.price,
+          originalPrice: productForm.originalPrice || productForm.price,
+          category: productForm.category,
+          brand: productForm.brand,
+          model: productForm.model || "",
+          images: productForm.images,
+          stockQuantity: productForm.stockQuantity,
+          minOrderQuantity: productForm.minOrderQuantity,
+          condition: productForm.condition,
+          material: productForm.material || "",
+          size: productForm.size || "",
+          color: productForm.color || "",
+          sellerId: currentSeller?.email || "unknown",
+          sellerName: currentSeller?.storeName || currentSeller?.ownerName || "Seller",
+          sellerEmail: currentSeller?.email || "",
+          sales: 0,
+          slug: productForm.name.toLowerCase().replace(/\s+/g, '-'),
+          categoryId: productForm.category,
+          isFeatured: false,
+          isActive: true,
+          rating: 0,
+          reviewCount: 0,
+          specifications: {}
+        });
 
-      // Add to products array
-      existingProducts.push(newProduct);
-      
-      // Save to localStorage
-      localStorage.setItem("sellerProducts", JSON.stringify(existingProducts));
-
-      // Update the products display
-      const formattedProduct = {
-        id: newProduct.id,
-        name: newProduct.name,
-        category: newProduct.category,
-        price: `₹${newProduct.price}`,
-        stock: newProduct.stockQuantity,
-        sales: 0,
-        image: newProduct.images[0] || "https://via.placeholder.com/100"
-      };
-      setProducts([...products, formattedProduct]);
-      alert("Product added successfully!");
+        // Update the products display
+        const formattedProduct = {
+          id: newProduct.id,
+          name: newProduct.name,
+          category: newProduct.category,
+          price: `₹${newProduct.price}`,
+          stock: newProduct.stockQuantity,
+          sales: 0,
+          image: newProduct.images[0] || "https://via.placeholder.com/100"
+        };
+        setProducts([...products, formattedProduct]);
+        alert("Product added successfully and is now visible on the homepage!");
+      } catch (error) {
+        console.error("Error adding product:", error);
+        alert("Failed to add product. Please try again.");
+      }
     }
 
     // Reset form
@@ -229,52 +282,64 @@ export default function SellerDashboardPage() {
     navigate("/seller/dashboard/products");
   };
 
-  const handleViewProduct = (product: any) => {
-    // Get full product details from localStorage
-    const savedProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
-    const fullProduct = savedProducts.find((p: any) => p.id === product.id);
-    setSelectedProduct(fullProduct || product);
-    setShowViewModal(true);
-  };
-
-  const handleEditProduct = (product: any) => {
-    // Get full product details from localStorage
-    const savedProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
-    const fullProduct = savedProducts.find((p: any) => p.id === product.id);
-    
-    if (fullProduct) {
-      // Populate the form with existing product data
-      setProductForm({
-        name: fullProduct.name,
-        brand: fullProduct.brand,
-        model: fullProduct.model || "",
-        description: fullProduct.description,
-        category: fullProduct.category,
-        price: fullProduct.price,
-        originalPrice: fullProduct.originalPrice || 0,
-        material: fullProduct.material || "",
-        size: fullProduct.size || "",
-        color: fullProduct.color || "",
-        stockQuantity: fullProduct.stockQuantity,
-        minOrderQuantity: fullProduct.minOrderQuantity,
-        condition: fullProduct.condition,
-        images: fullProduct.images || []
-      });
-      setSelectedProduct(fullProduct);
-      setShowProductModal(true);
+  const handleViewProduct = async (product: any) => {
+    try {
+      // Get full product details from Firebase
+      const fullProduct = await sellerService.getProductById(product.id);
+      setSelectedProduct(fullProduct || product);
+      setShowViewModal(true);
+    } catch (error) {
+      console.error("Error loading product:", error);
+      setSelectedProduct(product);
+      setShowViewModal(true);
     }
   };
 
-  const handleDeleteProduct = (product: any) => {
-    if (confirm(`Are you sure you want to delete "${product.name}"?`)) {
-      // Remove from localStorage
-      const savedProducts = JSON.parse(localStorage.getItem("sellerProducts") || "[]");
-      const updatedProducts = savedProducts.filter((p: any) => p.id !== product.id);
-      localStorage.setItem("sellerProducts", JSON.stringify(updatedProducts));
+  const handleEditProduct = async (product: any) => {
+    try {
+      // Get full product details from Firebase
+      const fullProduct = await sellerService.getProductById(product.id);
       
-      // Update state
-      setProducts(products.filter(p => p.id !== product.id));
-      alert("Product deleted successfully!");
+      if (fullProduct) {
+        // Populate the form with existing product data
+        setProductForm({
+          name: fullProduct.name,
+          brand: fullProduct.brand,
+          model: fullProduct.model || "",
+          description: fullProduct.description,
+          category: fullProduct.category,
+          price: fullProduct.price,
+          originalPrice: fullProduct.originalPrice || 0,
+          material: fullProduct.material || "",
+          size: fullProduct.size || "",
+          color: fullProduct.color || "",
+          stockQuantity: fullProduct.stockQuantity,
+          minOrderQuantity: fullProduct.minOrderQuantity,
+          condition: fullProduct.condition,
+          images: fullProduct.images || []
+        });
+        setSelectedProduct(fullProduct);
+        setShowProductModal(true);
+      }
+    } catch (error) {
+      console.error("Error loading product:", error);
+      alert("Failed to load product details.");
+    }
+  };
+
+  const handleDeleteProduct = async (product: any) => {
+    if (confirm(`Are you sure you want to delete "${product.name}"?`)) {
+      try {
+        // Remove from Firebase
+        await sellerService.deleteProduct(product.id);
+        
+        // Update state
+        setProducts(products.filter(p => p.id !== product.id));
+        alert("Product deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting product:", error);
+        alert("Failed to delete product. Please try again.");
+      }
     }
   };
 
@@ -554,45 +619,68 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {recentOrders.map((order) => (
-                        <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{order.id}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-xs">
-                                {order.customer.charAt(0)}
+                      {orders.slice(0, 4).map((order) => {
+                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                        const orderTotal = sellerItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+                        const productNames = sellerItems.map((item: any) => item.name).join(", ");
+                        
+                        return (
+                          <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <span className="text-sm font-bold text-gray-900">#{order.id}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-xs">
+                                  {order.userName?.charAt(0) || 'U'}
+                                </div>
+                                <span className="text-sm font-medium text-gray-900">{order.userName || 'Customer'}</span>
                               </div>
-                              <span className="text-sm font-medium text-gray-900">{order.customer}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">{order.product}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{order.amount}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-full ${getStatusColor(order.status)}`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-600">{order.date}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View">
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
-                                <Edit className="w-4 h-4" />
-                              </button>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-gray-700">{productNames || 'N/A'}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm font-bold text-gray-900">₹{orderTotal.toLocaleString('en-IN')}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-full ${getStatusColor(order.status || 'Pending')}`}>
+                                {order.status || 'Pending'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-gray-600">
+                                {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN') : 'N/A'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View">
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {orders.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-16 text-center">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center mb-4">
+                                <ShoppingCart className="w-10 h-10 text-blue-500" />
+                              </div>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Orders Yet</h3>
+                              <p className="text-sm text-gray-500 max-w-md">
+                                You haven't received any orders yet. Once customers start purchasing your products, orders will appear here.
+                              </p>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -760,13 +848,22 @@ export default function SellerDashboardPage() {
                           </td>
                         </tr>
                       ))}
+                      {products.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center">
+                            <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                            <p className="text-gray-500 font-medium">No products yet</p>
+                            <p className="text-sm text-gray-400 mt-1">Click "Add Product" to get started</p>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">3</span> of <span className="font-semibold text-gray-900">48</span> products</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{products.length}</span> of <span className="font-semibold text-gray-900">{products.length}</span> products</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -814,53 +911,78 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {recentOrders.map((order) => (
-                        <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{order.id}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{order.customer}</p>
-                              <p className="text-xs text-gray-500">Customer</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">{order.product}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{order.amount}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm text-gray-700">{new Date(order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
-                              <p className="text-xs text-gray-500">{new Date(order.date).getFullYear()}</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Edit Order">
-                                <Edit className="w-4 h-4" />
-                              </button>
+                      {orders.map((order) => {
+                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                        const orderTotal = sellerItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+                        const productNames = sellerItems.map((item: any) => item.name).join(", ");
+                        
+                        return (
+                          <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <span className="text-sm font-bold text-gray-900">#{order.id}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{order.userName || 'Customer'}</p>
+                                <p className="text-xs text-gray-500">Customer</p>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-gray-700">{productNames || 'N/A'}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm font-bold text-gray-900">₹{orderTotal.toLocaleString('en-IN')}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div>
+                                <p className="text-sm text-gray-700">
+                                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'N/A'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {order.createdAt ? new Date(order.createdAt).getFullYear() : ''}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status || 'Pending')}`}>
+                                {order.status || 'Pending'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Edit Order">
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {orders.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-16 text-center">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center mb-4">
+                                <ShoppingCart className="w-10 h-10 text-blue-500" />
+                              </div>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Orders Yet</h3>
+                              <p className="text-sm text-gray-500 max-w-md">
+                                You haven't received any orders yet. Once customers start purchasing your products, orders will appear here.
+                              </p>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">4</span> of <span className="font-semibold text-gray-900">156</span> orders</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{orders.length}</span> of <span className="font-semibold text-gray-900">{orders.length}</span> orders</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -899,7 +1021,7 @@ export default function SellerDashboardPage() {
                     <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-50 text-green-600">+12.5%</span>
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Total Revenue</p>
-                  <p className="text-2xl font-bold text-gray-900">₹1,24,500</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats[0].value}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -910,7 +1032,7 @@ export default function SellerDashboardPage() {
                     <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-50 text-blue-600">+8.2%</span>
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Total Orders</p>
-                  <p className="text-2xl font-bold text-gray-900">156</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats[1].value}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -920,8 +1042,15 @@ export default function SellerDashboardPage() {
                     </div>
                     <span className="text-xs font-semibold px-2 py-1 rounded-full bg-purple-50 text-purple-600">+15.3%</span>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Conversion Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">3.2%</p>
+                  <p className="text-sm text-gray-500 mb-1">Avg Order Value</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    ₹{orders.length > 0 ? Math.round(
+                      orders.reduce((sum, order) => {
+                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                        return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
+                      }, 0) / orders.length
+                    ).toLocaleString('en-IN') : '0'}
+                  </p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -931,8 +1060,8 @@ export default function SellerDashboardPage() {
                     </div>
                     <span className="text-xs font-semibold px-2 py-1 rounded-full bg-orange-50 text-orange-600">+23.1%</span>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">New Customers</p>
-                  <p className="text-2xl font-bold text-gray-900">89</p>
+                  <p className="text-sm text-gray-500 mb-1">Total Customers</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats[3].value}</p>
                 </div>
               </div>
 
@@ -1077,65 +1206,26 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {[
-                        { id: "#RET-001", customer: "Amit Kumar", product: "Running Shoes", reason: "Size Issue", amount: "₹2,999", date: "2024-01-14", status: "Pending" },
-                        { id: "#RET-002", customer: "Priya Singh", product: "Cotton Shirt", reason: "Damaged", amount: "₹899", date: "2024-01-13", status: "Approved" },
-                        { id: "#RET-003", customer: "Rahul Sharma", product: "Leather Bag", reason: "Wrong Item", amount: "₹2,499", date: "2024-01-12", status: "Completed" },
-                      ].map((returnItem) => (
-                        <tr key={returnItem.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{returnItem.id}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{returnItem.customer}</p>
-                              <p className="text-xs text-gray-500">Customer</p>
+                      <tr>
+                        <td colSpan={8} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-orange-50 rounded-full flex items-center justify-center mb-4">
+                              <TrendingUp className="w-10 h-10 text-orange-500" />
                             </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">{returnItem.product}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">{returnItem.reason}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{returnItem.amount}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm text-gray-700">{new Date(returnItem.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
-                              <p className="text-xs text-gray-500">{new Date(returnItem.date).getFullYear()}</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              returnItem.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                              returnItem.status === 'Approved' ? 'bg-blue-100 text-blue-700' :
-                              returnItem.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
-                            }`}>
-                              {returnItem.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Approve">
-                                <Edit className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Returns Yet</h3>
+                            <p className="text-sm text-gray-500 max-w-md">
+                              You don't have any return requests at the moment. When customers request returns, they'll appear here.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">3</span> of <span className="font-semibold text-gray-900">12</span> returns</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">0</span> of <span className="font-semibold text-gray-900">0</span> returns</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -1179,7 +1269,7 @@ export default function SellerDashboardPage() {
                     </div>
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Total Items</p>
-                  <p className="text-2xl font-bold text-gray-900">162</p>
+                  <p className="text-2xl font-bold text-gray-900">{products.reduce((sum, p) => sum + p.stock, 0)}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -1189,7 +1279,7 @@ export default function SellerDashboardPage() {
                     </div>
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Low Stock</p>
-                  <p className="text-2xl font-bold text-gray-900">8</p>
+                  <p className="text-2xl font-bold text-gray-900">{products.filter(p => p.stock > 0 && p.stock <= 20).length}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -1199,7 +1289,7 @@ export default function SellerDashboardPage() {
                     </div>
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Out of Stock</p>
-                  <p className="text-2xl font-bold text-gray-900">3</p>
+                  <p className="text-2xl font-bold text-gray-900">{products.filter(p => p.stock === 0).length}</p>
                 </div>
               </div>
 
@@ -1280,7 +1370,7 @@ export default function SellerDashboardPage() {
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">3</span> of <span className="font-semibold text-gray-900">48</span> items</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{products.length}</span> of <span className="font-semibold text-gray-900">{products.length}</span> items</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -1318,7 +1408,7 @@ export default function SellerDashboardPage() {
                     </div>
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Total Earnings</p>
-                  <p className="text-2xl font-bold text-gray-900">₹1,24,500</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats[0].value}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -1328,7 +1418,12 @@ export default function SellerDashboardPage() {
                     </div>
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Pending</p>
-                  <p className="text-2xl font-bold text-gray-900">₹18,750</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    ₹{orders.filter(o => o.status === 'Processing' || o.status === 'Pending').reduce((sum, order) => {
+                      const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                      return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
+                    }, 0).toLocaleString('en-IN')}
+                  </p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -1337,8 +1432,13 @@ export default function SellerDashboardPage() {
                       <DollarSign className="w-5 h-5 text-purple-600" />
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Withdrawn</p>
-                  <p className="text-2xl font-bold text-gray-900">₹95,200</p>
+                  <p className="text-sm text-gray-500 mb-1">Completed</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    ₹{orders.filter(o => o.status === 'Delivered').reduce((sum, order) => {
+                      const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                      return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
+                    }, 0).toLocaleString('en-IN')}
+                  </p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -1347,8 +1447,13 @@ export default function SellerDashboardPage() {
                       <DollarSign className="w-5 h-5 text-orange-600" />
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Available</p>
-                  <p className="text-2xl font-bold text-gray-900">₹10,550</p>
+                  <p className="text-sm text-gray-500 mb-1">In Transit</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    ₹{orders.filter(o => o.status === 'Shipped').reduce((sum, order) => {
+                      const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                      return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
+                    }, 0).toLocaleString('en-IN')}
+                  </p>
                 </div>
               </div>
 
@@ -1368,68 +1473,79 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {[
-                        { id: "#TXN-001", type: "Sale", orderId: "#ORD-001", amount: "₹2,499", date: "2024-01-15", status: "Completed" },
-                        { id: "#TXN-002", type: "Sale", orderId: "#ORD-002", amount: "₹899", date: "2024-01-14", status: "Completed" },
-                        { id: "#TXN-003", type: "Withdrawal", orderId: "-", amount: "₹15,000", date: "2024-01-14", status: "Processing" },
-                        { id: "#TXN-004", type: "Refund", orderId: "#ORD-003", amount: "₹3,299", date: "2024-01-13", status: "Completed" },
-                      ].map((transaction) => (
-                        <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{transaction.id}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${
-                              transaction.type === 'Sale' ? 'bg-green-50 text-green-700' :
-                              transaction.type === 'Withdrawal' ? 'bg-blue-50 text-blue-700' :
-                              'bg-red-50 text-red-700'
-                            }`}>
-                              {transaction.type}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">{transaction.orderId}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`text-sm font-bold ${
-                              transaction.type === 'Sale' ? 'text-green-600' :
-                              transaction.type === 'Refund' ? 'text-red-600' :
-                              'text-gray-900'
-                            }`}>
-                              {transaction.type === 'Refund' ? '-' : '+'}{transaction.amount}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <p className="text-sm text-gray-700">{new Date(transaction.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
-                              <p className="text-xs text-gray-500">{new Date(transaction.date).getFullYear()}</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              transaction.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                              transaction.status === 'Processing' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
-                            }`}>
-                              {transaction.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
-                                <Eye className="w-4 h-4" />
-                              </button>
+                      {orders.map((order) => {
+                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                        const orderTotal = sellerItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+                        
+                        return (
+                          <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <span className="text-sm font-bold text-gray-900">#TXN-{order.id}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-green-50 text-green-700">
+                                Sale
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-gray-700">#{order.id}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm font-bold text-green-600">
+                                +₹{orderTotal.toLocaleString('en-IN')}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div>
+                                <p className="text-sm text-gray-700">
+                                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'N/A'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {order.createdAt ? new Date(order.createdAt).getFullYear() : ''}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                                order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
+                                'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {order.status || 'Pending'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {orders.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-16 text-center">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-50 rounded-full flex items-center justify-center mb-4">
+                                <DollarSign className="w-10 h-10 text-green-500" />
+                              </div>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Transactions Yet</h3>
+                              <p className="text-sm text-gray-500 max-w-md">
+                                Your payment transactions will appear here once you start receiving orders and payments.
+                              </p>
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">4</span> of <span className="font-semibold text-gray-900">156</span> transactions</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{orders.length}</span> of <span className="font-semibold text-gray-900">{orders.length}</span> transactions</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -1603,56 +1719,22 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {[
-                        { id: "#TKT-001", subject: "Payment not received", category: "Payment", priority: "High", date: "2024-01-15", status: "Pending" },
-                        { id: "#TKT-002", subject: "Product listing issue", category: "Technical", priority: "Medium", date: "2024-01-14", status: "In Progress" },
-                        { id: "#TKT-003", subject: "Account verification", category: "Account", priority: "Low", date: "2024-01-13", status: "Resolved" },
-                      ].map((ticket) => (
-                        <tr key={ticket.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-bold text-gray-900">{ticket.id}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">{ticket.subject}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700">
-                              {ticket.category}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              ticket.priority === 'High' ? 'bg-red-100 text-red-700' :
-                              ticket.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-green-100 text-green-700'
-                            }`}>
-                              {ticket.priority}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">{ticket.date}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              ticket.status === 'Resolved' ? 'bg-green-100 text-green-700' :
-                              ticket.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
-                              'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {ticket.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Reply">
-                                <MessageSquare className="w-4 h-4" />
-                              </button>
+                      <tr>
+                        <td colSpan={7} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-50 rounded-full flex items-center justify-center mb-4">
+                              <Headphones className="w-10 h-10 text-purple-500" />
                             </div>
-                          </td>
-                        </tr>
-                      ))}
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Support Tickets</h3>
+                            <p className="text-sm text-gray-500 max-w-md mb-4">
+                              You haven't created any support tickets yet. If you need help, create a ticket above.
+                            </p>
+                            <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium">
+                              Create Your First Ticket
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -2056,7 +2138,7 @@ export default function SellerDashboardPage() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Stock Quantity</label>
-                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.stockQuantity}</p>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.stockQuantity || 0}</p>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase">Min Order Quantity</label>
