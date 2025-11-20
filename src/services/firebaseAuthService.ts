@@ -83,9 +83,23 @@ class FirebaseAuthService {
       }
       
       return null;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      return null;
+      
+      // Throw user-friendly error messages
+      if (error.code === 'auth/invalid-credential') {
+        throw new Error('Invalid email or password. Please check your credentials and try again.');
+      } else if (error.code === 'auth/user-not-found') {
+        throw new Error('No account found with this email address.');
+      } else if (error.code === 'auth/wrong-password') {
+        throw new Error('Incorrect password. Please try again.');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many failed login attempts. Please try again later.');
+      } else if (error.code === 'auth/user-disabled') {
+        throw new Error('This account has been disabled.');
+      } else {
+        throw new Error('Failed to sign in. Please try again.');
+      }
     }
   }
 
@@ -109,9 +123,21 @@ class FirebaseAuthService {
       
       this.setCurrentUser(newUser);
       return newUser;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Signup error:', error);
-      return null;
+      
+      // Throw user-friendly error messages
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('This email is already registered. Please sign in instead.');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Invalid email address. Please check and try again.');
+      } else if (error.code === 'auth/weak-password') {
+        throw new Error('Password is too weak. Please use at least 6 characters.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Email/password accounts are not enabled. Please contact support.');
+      } else {
+        throw new Error('Failed to create account. Please try again.');
+      }
     }
   }
 

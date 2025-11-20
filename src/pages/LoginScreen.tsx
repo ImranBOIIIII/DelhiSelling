@@ -37,13 +37,17 @@ export default function LoginScreen() {
         const user = await firebaseAuthService.login(formData.email, formData.password);
         if (user) {
           navigate('/account');
-        } else {
-          setError('Invalid email or password');
         }
       } else {
         // Signup logic with Firebase
         if (formData.password !== formData.confirmPassword) {
           setError('Passwords do not match');
+          setLoading(false);
+          return;
+        }
+
+        if (formData.password.length < 6) {
+          setError('Password must be at least 6 characters long');
           setLoading(false);
           return;
         }
@@ -57,15 +61,14 @@ export default function LoginScreen() {
 
         if (user) {
           navigate('/account');
-        } else {
-          setError('Failed to create account. Please try again.');
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Authentication error:', err);
-      setError(isLogin 
+      // Display the error message from the auth service
+      setError(err.message || (isLogin 
         ? 'Failed to sign in. Please check your credentials.' 
-        : 'Failed to create account. Please try again.');
+        : 'Failed to create account. Please try again.'));
     } finally {
       setLoading(false);
     }

@@ -35,6 +35,13 @@ export default function SellerDashboardPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  
+  // Order management states
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
+  const [showOrderStatusModal, setShowOrderStatusModal] = useState(false);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
+  
   const navigate = useNavigate();
 
   // Check if seller is logged in
@@ -70,7 +77,7 @@ export default function SellerDashboardPage() {
     { label: "Customers", value: "0", change: "+0%", icon: Users, color: "bg-orange-500" },
   ]);
 
-  // Load products and orders from Firebase on mount
+  // Load products and orders from Firebase on mount and when tab changes
   useEffect(() => {
     if (!currentSeller) return;
 
@@ -79,56 +86,53 @@ export default function SellerDashboardPage() {
         // Load products from Firebase
         const sellerProducts = await sellerService.getSellerProducts(currentSeller.email);
         
-        if (sellerProducts.length > 0) {
-          // Format products to match the display format
-          const formattedProducts = sellerProducts.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            category: p.category,
-            price: `₹${p.price}`,
-            stock: p.stockQuantity,
-            sales: p.sales || 0,
-            image: p.images[0] || "https://via.placeholder.com/100",
-            rawPrice: p.price
-          }));
-          setProducts(formattedProducts);
-        }
+        // Format products to match the display format
+        const formattedProducts = sellerProducts.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          price: `₹${p.price}`,
+          stock: p.stockQuantity,
+          sales: p.sales || 0,
+          image: p.images[0] || "https://via.placeholder.com/100",
+          rawPrice: p.price
+        }));
+        setProducts(formattedProducts);
 
-        // Load orders from localStorage (keeping this for now)
-        const savedOrders = localStorage.getItem("admin_orders");
-        if (savedOrders) {
-          const parsedOrders = JSON.parse(savedOrders);
-          // Filter orders for current seller's products
-          const sellerOrders = parsedOrders.filter((order: any) => {
-            // Check if any item in the order belongs to this seller
-            return order.items?.some((item: any) => item.sellerId === currentSeller?.email);
-          });
-          setOrders(sellerOrders);
+        // Load orders from Firebase
+        const firebaseAdminService = (await import("../services/firebaseAdminService")).default;
+        const allOrders = await firebaseAdminService.getAdminOrders();
+        
+        // Filter orders for current seller's products
+        const sellerOrders = allOrders.filter((order: any) => {
+          // Check if any item in the order belongs to this seller
+          return order.items?.some((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email);
+        });
+        setOrders(sellerOrders);
 
-          // Calculate stats
-          const totalRevenue = sellerOrders.reduce((sum: number, order: any) => {
-            const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
-            const orderTotal = sellerItems.reduce((itemSum: number, item: any) => 
-              itemSum + (item.price * item.quantity), 0);
-            return sum + orderTotal;
-          }, 0);
+        // Calculate stats
+        const totalRevenue = sellerOrders.reduce((sum: number, order: any) => {
+          const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email) || [];
+          const orderTotal = sellerItems.reduce((itemSum: number, item: any) => 
+            itemSum + (item.price * item.quantity), 0);
+          return sum + orderTotal;
+        }, 0);
 
-          const uniqueCustomers = new Set(sellerOrders.map((order: any) => order.userId)).size;
+        const uniqueCustomers = new Set(sellerOrders.map((order: any) => order.customerEmail)).size;
 
-          setStats([
-            { label: "Total Revenue", value: `₹${totalRevenue.toLocaleString('en-IN')}`, change: "+12.5%", icon: DollarSign, color: "bg-green-500" },
-            { label: "Total Orders", value: sellerOrders.length.toString(), change: "+8.2%", icon: ShoppingCart, color: "bg-blue-500" },
-            { label: "Products", value: sellerProducts.length.toString(), change: `+${sellerProducts.length}`, icon: Package, color: "bg-purple-500" },
-            { label: "Customers", value: uniqueCustomers.toString(), change: "+15.3%", icon: Users, color: "bg-orange-500" },
-          ]);
-        }
+        setStats([
+          { label: "Total Revenue", value: `₹${totalRevenue.toLocaleString('en-IN')}`, change: "+12.5%", icon: DollarSign, color: "bg-green-500" },
+          { label: "Total Orders", value: sellerOrders.length.toString(), change: "+8.2%", icon: ShoppingCart, color: "bg-blue-500" },
+          { label: "Products", value: sellerProducts.length.toString(), change: `+${sellerProducts.length}`, icon: Package, color: "bg-purple-500" },
+          { label: "Customers", value: uniqueCustomers.toString(), change: "+15.3%", icon: Users, color: "bg-orange-500" },
+        ]);
       } catch (error) {
         console.error("Error loading seller data:", error);
       }
     };
 
     loadData();
-  }, [currentSeller]);
+  }, [currentSeller, activeTab]);
 
   const menuItems = [
     { id: "home", label: "Home", icon: LayoutDashboard, color: "#f87171" },
@@ -141,11 +145,13 @@ export default function SellerDashboardPage() {
   ];
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Delivered": return "bg-green-100 text-green-800";
-      case "Shipped": return "bg-blue-100 text-blue-800";
-      case "Processing": return "bg-yellow-100 text-yellow-800";
-      case "Pending": return "bg-gray-100 text-gray-800";
+    switch (status.toLowerCase()) {
+      case "delivered": return "bg-green-100 text-green-800";
+      case "shipped": return "bg-purple-100 text-purple-800";
+      case "confirmed": return "bg-indigo-100 text-indigo-800";
+      case "processing": return "bg-blue-100 text-blue-800";
+      case "pending": return "bg-yellow-100 text-yellow-800";
+      case "cancelled": return "bg-red-100 text-red-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };
@@ -169,9 +175,9 @@ export default function SellerDashboardPage() {
       return;
     }
 
-    if (selectedProduct) {
-      // Edit existing product in Firebase
-      try {
+    try {
+      if (selectedProduct) {
+        // Edit existing product in Firebase
         await sellerService.updateProduct(selectedProduct.id, {
           name: productForm.name,
           description: productForm.description,
@@ -189,27 +195,10 @@ export default function SellerDashboardPage() {
           color: productForm.color || "",
         });
         
-        // Update display
-        const formattedProduct = {
-          id: selectedProduct.id,
-          name: productForm.name,
-          category: productForm.category,
-          price: `₹${productForm.price}`,
-          stock: productForm.stockQuantity,
-          sales: selectedProduct.sales || 0,
-          image: productForm.images[0] || "https://via.placeholder.com/100"
-        };
-        
-        setProducts(products.map(p => p.id === selectedProduct.id ? formattedProduct : p));
         alert("Product updated successfully!");
-      } catch (error) {
-        console.error("Error updating product:", error);
-        alert("Failed to update product. Please try again.");
-      }
-    } else {
-      // Create new product in Firebase
-      try {
-        const newProduct = await sellerService.addProduct({
+      } else {
+        // Create new product in Firebase
+        await sellerService.addProduct({
           name: productForm.name,
           description: productForm.description,
           price: productForm.price,
@@ -236,50 +225,55 @@ export default function SellerDashboardPage() {
           reviewCount: 0,
           specifications: {}
         });
-
-        // Update the products display
-        const formattedProduct = {
-          id: newProduct.id,
-          name: newProduct.name,
-          category: newProduct.category,
-          price: `₹${newProduct.price}`,
-          stock: newProduct.stockQuantity,
-          sales: 0,
-          image: newProduct.images[0] || "https://via.placeholder.com/100"
-        };
-        setProducts([...products, formattedProduct]);
+        
         alert("Product added successfully and is now visible on the homepage!");
-      } catch (error) {
-        console.error("Error adding product:", error);
-        alert("Failed to add product. Please try again.");
       }
+
+      // Reload products from Firebase immediately to ensure sync across all devices
+      const sellerProducts = await sellerService.getSellerProducts(currentSeller?.email || "");
+      const formattedProducts = sellerProducts.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: `₹${p.price}`,
+        stock: p.stockQuantity,
+        sales: p.sales || 0,
+        image: p.images[0] || "https://via.placeholder.com/100",
+        rawPrice: p.price
+      }));
+      
+      // Update products state immediately
+      setProducts(formattedProducts);
+      
+      // Reset form
+      setProductForm({
+        name: "",
+        brand: "",
+        model: "",
+        description: "",
+        category: "",
+        price: 0,
+        originalPrice: 0,
+        material: "",
+        size: "",
+        color: "",
+        stockQuantity: 0,
+        minOrderQuantity: 1,
+        condition: "new",
+        images: []
+      });
+      setImageUrl("");
+      setSelectedProduct(null);
+
+      // Close modal
+      setShowProductModal(false);
+      
+      // Navigate to products tab to see the updated product list
+      navigate("/seller/dashboard/products");
+    } catch (error) {
+      console.error("Error saving product:", error);
+      alert("Failed to save product. Please try again.");
     }
-
-    // Reset form
-    setProductForm({
-      name: "",
-      brand: "",
-      model: "",
-      description: "",
-      category: "",
-      price: 0,
-      originalPrice: 0,
-      material: "",
-      size: "",
-      color: "",
-      stockQuantity: 0,
-      minOrderQuantity: 1,
-      condition: "new",
-      images: []
-    });
-    setImageUrl("");
-    setSelectedProduct(null);
-
-    // Close modal
-    setShowProductModal(false);
-    
-    // Switch to products tab to see the product
-    navigate("/seller/dashboard/products");
   };
 
   const handleViewProduct = async (product: any) => {
@@ -333,8 +327,20 @@ export default function SellerDashboardPage() {
         // Remove from Firebase
         await sellerService.deleteProduct(product.id);
         
-        // Update state
-        setProducts(products.filter(p => p.id !== product.id));
+        // Reload products from Firebase to ensure sync
+        const sellerProducts = await sellerService.getSellerProducts(currentSeller?.email || "");
+        const formattedProducts = sellerProducts.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          price: `₹${p.price}`,
+          stock: p.stockQuantity,
+          sales: p.sales || 0,
+          image: p.images[0] || "https://via.placeholder.com/100",
+          rawPrice: p.price
+        }));
+        setProducts(formattedProducts);
+        
         alert("Product deleted successfully!");
       } catch (error) {
         console.error("Error deleting product:", error);
@@ -342,6 +348,52 @@ export default function SellerDashboardPage() {
       }
     }
   };
+
+  // Order management functions
+  const handleViewOrderDetails = (order: any) => {
+    setSelectedOrder(order);
+    setShowOrderDetailsModal(true);
+  };
+
+  const handleUpdateOrderStatus = (order: any) => {
+    setSelectedOrder(order);
+    setShowOrderStatusModal(true);
+  };
+
+  const handleOrderStatusChange = async (newStatus: string) => {
+    if (!selectedOrder) return;
+
+    try {
+      const firebaseAdminService = (await import("../services/firebaseAdminService")).default;
+      
+      const updatedOrder = {
+        ...selectedOrder,
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      };
+      
+      await firebaseAdminService.updateOrder(updatedOrder);
+      
+      // Reload orders
+      const allOrders = await firebaseAdminService.getAdminOrders();
+      const sellerOrders = allOrders.filter((order: any) => {
+        return order.items?.some((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email);
+      });
+      setOrders(sellerOrders);
+      
+      setShowOrderStatusModal(false);
+      setSelectedOrder(null);
+      alert("Order status updated successfully!");
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      alert("Failed to update order status. Please try again.");
+    }
+  };
+
+  // Filter orders by status
+  const filteredOrders = orderStatusFilter === "all" 
+    ? orders 
+    : orders.filter((order: any) => order.status === orderStatusFilter);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -620,21 +672,21 @@ export default function SellerDashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {orders.slice(0, 4).map((order) => {
-                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email) || [];
                         const orderTotal = sellerItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-                        const productNames = sellerItems.map((item: any) => item.name).join(", ");
+                        const productNames = sellerItems.map((item: any) => item.productName).join(", ");
                         
                         return (
                           <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4">
-                              <span className="text-sm font-bold text-gray-900">#{order.id}</span>
+                              <span className="text-sm font-bold text-gray-900">#{order.orderNumber}</span>
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center space-x-3">
                                 <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-xs">
-                                  {order.userName?.charAt(0) || 'U'}
+                                  {order.customerName?.charAt(0) || 'U'}
                                 </div>
-                                <span className="text-sm font-medium text-gray-900">{order.userName || 'Customer'}</span>
+                                <span className="text-sm font-medium text-gray-900">{order.customerName || 'Customer'}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -644,8 +696,8 @@ export default function SellerDashboardPage() {
                               <span className="text-sm font-bold text-gray-900">₹{orderTotal.toLocaleString('en-IN')}</span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-full ${getStatusColor(order.status || 'Pending')}`}>
-                                {order.status || 'Pending'}
+                              <span className={`inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-full ${getStatusColor(order.status || 'pending')}`}>
+                                {order.status || 'pending'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -885,12 +937,19 @@ export default function SellerDashboardPage() {
                   <p className="text-sm text-gray-500">Manage and track all your customer orders</p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <select className="px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" style={{ borderColor: '#e5e7eb' }}>
-                    <option>All Status</option>
-                    <option>Pending</option>
-                    <option>Processing</option>
-                    <option>Shipped</option>
-                    <option>Delivered</option>
+                  <select 
+                    value={orderStatusFilter}
+                    onChange={(e) => setOrderStatusFilter(e.target.value)}
+                    className="px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                    style={{ borderColor: '#e5e7eb' }}
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
               </div>
@@ -911,20 +970,20 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {orders.map((order) => {
-                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                      {filteredOrders.map((order) => {
+                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email) || [];
                         const orderTotal = sellerItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-                        const productNames = sellerItems.map((item: any) => item.name).join(", ");
+                        const productNames = sellerItems.map((item: any) => item.productName).join(", ");
                         
                         return (
                           <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4">
-                              <span className="text-sm font-bold text-gray-900">#{order.id}</span>
+                              <span className="text-sm font-bold text-gray-900">#{order.orderNumber}</span>
                             </td>
                             <td className="px-6 py-4">
                               <div>
-                                <p className="text-sm font-semibold text-gray-900">{order.userName || 'Customer'}</p>
-                                <p className="text-xs text-gray-500">Customer</p>
+                                <p className="text-sm font-semibold text-gray-900">{order.customerName || 'Customer'}</p>
+                                <p className="text-xs text-gray-500">{order.customerEmail}</p>
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -944,16 +1003,24 @@ export default function SellerDashboardPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status || 'Pending')}`}>
-                                {order.status || 'Pending'}
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status || 'pending')}`}>
+                                {order.status || 'pending'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end space-x-2">
-                                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
+                                <button 
+                                  onClick={() => handleViewOrderDetails(order)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
+                                  title="View Details"
+                                >
                                   <Eye className="w-4 h-4" />
                                 </button>
-                                <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="Edit Order">
+                                <button 
+                                  onClick={() => handleUpdateOrderStatus(order)}
+                                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
+                                  title="Update Status"
+                                >
                                   <Edit className="w-4 h-4" />
                                 </button>
                               </div>
@@ -961,16 +1028,21 @@ export default function SellerDashboardPage() {
                           </tr>
                         );
                       })}
-                      {orders.length === 0 && (
+                      {filteredOrders.length === 0 && (
                         <tr>
                           <td colSpan={7} className="px-6 py-16 text-center">
                             <div className="flex flex-col items-center justify-center">
                               <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center mb-4">
                                 <ShoppingCart className="w-10 h-10 text-blue-500" />
                               </div>
-                              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Orders Yet</h3>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                {orderStatusFilter === "all" ? "No Orders Yet" : `No ${orderStatusFilter} Orders`}
+                              </h3>
                               <p className="text-sm text-gray-500 max-w-md">
-                                You haven't received any orders yet. Once customers start purchasing your products, orders will appear here.
+                                {orderStatusFilter === "all" 
+                                  ? "You haven't received any orders yet. Once customers start purchasing your products, orders will appear here."
+                                  : `No orders with ${orderStatusFilter} status found.`
+                                }
                               </p>
                             </div>
                           </td>
@@ -982,7 +1054,7 @@ export default function SellerDashboardPage() {
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{orders.length}</span> of <span className="font-semibold text-gray-900">{orders.length}</span> orders</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{filteredOrders.length}</span> of <span className="font-semibold text-gray-900">{orders.length}</span> orders</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -2187,6 +2259,120 @@ export default function SellerDashboardPage() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Modal */}
+      {showOrderDetailsModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Order #{selectedOrder.orderNumber}</h3>
+                <p className="text-sm text-gray-600">Placed on {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+              </div>
+              <button onClick={() => setShowOrderDetailsModal(false)} className="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Customer Info */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Customer Information</h4>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <p><span className="font-medium">Name:</span> {selectedOrder.customerName}</p>
+                  <p><span className="font-medium">Email:</span> {selectedOrder.customerEmail}</p>
+                  <p><span className="font-medium">Phone:</span> {selectedOrder.customerPhone}</p>
+                </div>
+              </div>
+
+              {/* Shipping Address */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Shipping Address</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p>{selectedOrder.shippingAddress?.fullName}</p>
+                  <p>{selectedOrder.shippingAddress?.addressLine1}</p>
+                  {selectedOrder.shippingAddress?.addressLine2 && <p>{selectedOrder.shippingAddress.addressLine2}</p>}
+                  <p>{selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.state} {selectedOrder.shippingAddress?.pincode}</p>
+                  <p className="mt-2"><span className="font-medium">Phone:</span> {selectedOrder.shippingAddress?.phone}</p>
+                </div>
+              </div>
+
+              {/* Order Items (Seller's items only) */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Your Items in this Order</h4>
+                <div className="space-y-3">
+                  {selectedOrder.items?.filter((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email).map((item: any, index: number) => (
+                    <div key={index} className="flex gap-4 border border-gray-200 rounded-lg p-4">
+                      <img src={item.productImage} alt={item.productName} className="w-20 h-20 object-cover rounded-lg" />
+                      <div className="flex-1">
+                        <h5 className="font-semibold text-gray-900">{item.productName}</h5>
+                        <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                        <p className="text-sm font-semibold text-gray-900 mt-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Order Status */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Order Status</h4>
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+                  <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${getStatusColor(selectedOrder.status)}`}>
+                    {selectedOrder.status}
+                  </span>
+                  <button onClick={() => { setShowOrderDetailsModal(false); handleUpdateOrderStatus(selectedOrder); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Update Status
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Status Update Modal */}
+      {showOrderStatusModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">Update Order Status</h3>
+              <p className="text-sm text-gray-600 mt-1">Order #{selectedOrder.orderNumber}</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">Current Status: <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(selectedOrder.status)}`}>{selectedOrder.status}</span></p>
+              
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Select New Status</label>
+                <div className="space-y-2">
+                  {['pending', 'processing', 'confirmed', 'shipped', 'delivered', 'cancelled'].map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => handleOrderStatusChange(status)}
+                      disabled={selectedOrder.status === status}
+                      className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
+                        selectedOrder.status === status 
+                          ? 'border-gray-300 bg-gray-100 cursor-not-allowed' 
+                          : 'border-gray-200 hover:border-blue-500 hover:bg-blue-50'
+                      }`}
+                    >
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(status)}`}>
+                        {status}
+                      </span>
+                      {selectedOrder.status === status && <span className="ml-2 text-xs text-gray-500">(Current)</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+              <button onClick={() => setShowOrderStatusModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
             </div>
           </div>
         </div>

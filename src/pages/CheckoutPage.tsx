@@ -205,6 +205,9 @@ export default function CheckoutPage({
         productImage: item.product.images[0],
         quantity: item.quantity,
         price: item.product.price,
+        sellerId: item.product.sellerId || "",
+        sellerName: item.product.sellerName || "",
+        sellerEmail: item.product.sellerEmail || "",
       }));
 
       const newOrderInput = {
