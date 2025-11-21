@@ -230,6 +230,26 @@ export default function CheckoutPage({
 
       const saved = await firebaseAdminService.addOrder(newOrderInput);
 
+      // Decrease stock for each product in the order
+      const { doc, updateDoc, getDoc, increment } = await import("firebase/firestore");
+      const { db } = await import("../services/firebaseConfig");
+      
+      for (const item of cartItems) {
+        try {
+          const productRef = doc(db, "products", item.product.id);
+          const productSnap = await getDoc(productRef);
+          
+          if (productSnap.exists()) {
+            await updateDoc(productRef, {
+              stockQuantity: increment(-item.quantity),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        } catch (error) {
+          console.error(`Error updating stock for product ${item.product.id}:`, error);
+        }
+      }
+
       // Store the placed order details for display
       setPlacedOrder(saved);
       setOrderPlaced(true);

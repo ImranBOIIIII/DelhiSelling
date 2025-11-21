@@ -42,6 +42,17 @@ export default function SellerDashboardPage() {
   const [showOrderStatusModal, setShowOrderStatusModal] = useState(false);
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
   
+  // Return management states
+  const [selectedReturn, setSelectedReturn] = useState<any>(null);
+  const [showReturnDetailsModal, setShowReturnDetailsModal] = useState(false);
+  
+  // Inventory management states
+  const [inventoryFilter, setInventoryFilter] = useState<string>("all");
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [selectedProductForStock, setSelectedProductForStock] = useState<any>(null);
+  const [stockAdjustment, setStockAdjustment] = useState<number>(0);
+  const [stockOperation, setStockOperation] = useState<"add" | "set">("add");
+  
   const navigate = useNavigate();
 
   // Check if seller is logged in
@@ -70,6 +81,8 @@ export default function SellerDashboardPage() {
 
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [returns, setReturns] = useState<any[]>([]);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<string>("7");
   const [stats, setStats] = useState([
     { label: "Total Revenue", value: "₹0", change: "+0%", icon: DollarSign, color: "bg-green-500" },
     { label: "Total Orders", value: "0", change: "+0%", icon: ShoppingCart, color: "bg-blue-500" },
@@ -110,19 +123,32 @@ export default function SellerDashboardPage() {
         });
         setOrders(sellerOrders);
 
-        // Calculate stats
-        const totalRevenue = sellerOrders.reduce((sum: number, order: any) => {
+        // Load returns from Firebase
+        const { collection, query, where, getDocs } = await import("firebase/firestore");
+        const { db } = await import("../services/firebaseConfig");
+        const returnsQuery = query(
+          collection(db, "returns"),
+          where("sellerEmail", "==", currentSeller.email)
+        );
+        const returnsSnapshot = await getDocs(returnsQuery);
+        const sellerReturns = returnsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setReturns(sellerReturns);
+
+        // Calculate stats (excluding cancelled orders)
+        const validSellerOrders = sellerOrders.filter((order: any) => order.status !== 'cancelled');
+        
+        const totalRevenue = validSellerOrders.reduce((sum: number, order: any) => {
           const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email) || [];
           const orderTotal = sellerItems.reduce((itemSum: number, item: any) => 
             itemSum + (item.price * item.quantity), 0);
           return sum + orderTotal;
         }, 0);
 
-        const uniqueCustomers = new Set(sellerOrders.map((order: any) => order.customerEmail)).size;
+        const uniqueCustomers = new Set(validSellerOrders.map((order: any) => order.customerEmail)).size;
 
         setStats([
           { label: "Total Revenue", value: `₹${totalRevenue.toLocaleString('en-IN')}`, change: "+12.5%", icon: DollarSign, color: "bg-green-500" },
-          { label: "Total Orders", value: sellerOrders.length.toString(), change: "+8.2%", icon: ShoppingCart, color: "bg-blue-500" },
+          { label: "Total Orders", value: validSellerOrders.length.toString(), change: "+8.2%", icon: ShoppingCart, color: "bg-blue-500" },
           { label: "Products", value: sellerProducts.length.toString(), change: `+${sellerProducts.length}`, icon: Package, color: "bg-purple-500" },
           { label: "Customers", value: uniqueCustomers.toString(), change: "+15.3%", icon: Users, color: "bg-orange-500" },
         ]);
@@ -365,6 +391,7 @@ export default function SellerDashboardPage() {
 
     try {
       const firebaseAdminService = (await import("../services/firebaseAdminService")).default;
+      const oldStatus = selectedOrder.status;
       
       const updatedOrder = {
         ...selectedOrder,
@@ -373,17 +400,57 @@ export default function SellerDashboardPage() {
       };
       
       await firebaseAdminService.updateOrder(updatedOrder);
+
+      // If order is being cancelled, restore stock
+      if (newStatus === 'cancelled' && oldStatus !== 'cancelled') {
+        const { doc, updateDoc, getDoc, increment } = await import("firebase/firestore");
+        const { db } = await import("../services/firebaseConfig");
+        
+        const sellerItems = selectedOrder.items?.filter((item: any) => 
+          item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email
+        ) || [];
+
+        for (const item of sellerItems) {
+          try {
+            const productRef = doc(db, "products", item.id);
+            const productSnap = await getDoc(productRef);
+            
+            if (productSnap.exists()) {
+              await updateDoc(productRef, {
+                stockQuantity: increment(item.quantity),
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          } catch (error) {
+            console.error(`Error restoring stock for product ${item.id}:`, error);
+          }
+        }
+      }
       
-      // Reload orders
+      // Reload orders and products
       const allOrders = await firebaseAdminService.getAdminOrders();
       const sellerOrders = allOrders.filter((order: any) => {
         return order.items?.some((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email);
       });
       setOrders(sellerOrders);
+
+      // Reload products to show updated stock
+      const sellerProducts = await sellerService.getSellerProducts(currentSeller?.email || "");
+      const formattedProducts = sellerProducts.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: `₹${p.price}`,
+        stock: p.stockQuantity,
+        sales: p.sales || 0,
+        image: p.images[0] || "https://via.placeholder.com/100",
+        rawPrice: p.price
+      }));
+      setProducts(formattedProducts);
       
       setShowOrderStatusModal(false);
       setSelectedOrder(null);
-      alert("Order status updated successfully!");
+      alert("Order status updated successfully!" + (newStatus === 'cancelled' ? " Stock has been restored." : ""));
     } catch (error) {
       console.error("Error updating order status:", error);
       alert("Failed to update order status. Please try again.");
@@ -394,6 +461,214 @@ export default function SellerDashboardPage() {
   const filteredOrders = orderStatusFilter === "all" 
     ? orders 
     : orders.filter((order: any) => order.status === orderStatusFilter);
+
+  // Calculate analytics data (excluding cancelled orders and returned orders)
+  const getValidOrders = () => {
+    return orders.filter((order: any) => order.status !== 'cancelled');
+  };
+
+  const validOrders = getValidOrders();
+
+  // Calculate actual sales for each product from orders
+  const getProductSales = () => {
+    const salesMap: Record<string, { quantity: number; revenue: number }> = {};
+    
+    validOrders.forEach((order: any) => {
+      const sellerItems = order.items?.filter((item: any) => 
+        item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email
+      ) || [];
+      
+      sellerItems.forEach((item: any) => {
+        const productId = item.id || item.productId;
+        if (!salesMap[productId]) {
+          salesMap[productId] = { quantity: 0, revenue: 0 };
+        }
+        salesMap[productId].quantity += item.quantity || 0;
+        salesMap[productId].revenue += (item.price * item.quantity) || 0;
+      });
+    });
+    
+    return salesMap;
+  };
+
+  const productSales = getProductSales();
+
+  // Get top selling products with actual sales data
+  const getTopProducts = () => {
+    return products
+      .map(product => ({
+        ...product,
+        actualSales: productSales[product.id]?.quantity || 0,
+        actualRevenue: productSales[product.id]?.revenue || 0,
+      }))
+      .sort((a, b) => b.actualSales - a.actualSales)
+      .slice(0, 5);
+  };
+
+  const topProducts = getTopProducts();
+
+  // Filter products for inventory
+  const getFilteredInventory = () => {
+    switch (inventoryFilter) {
+      case "low":
+        return products.filter(p => p.stock > 0 && p.stock <= 20);
+      case "out":
+        return products.filter(p => p.stock === 0);
+      case "in":
+        return products.filter(p => p.stock > 20);
+      default:
+        return products;
+    }
+  };
+
+  const filteredInventory = getFilteredInventory();
+
+  // Handle stock update
+  const handleOpenStockModal = (product: any, operation: "add" | "set") => {
+    setSelectedProductForStock(product);
+    setStockOperation(operation);
+    setStockAdjustment(operation === "set" ? product.stock : 0);
+    setShowStockModal(true);
+  };
+
+  const handleUpdateStock = async () => {
+    if (!selectedProductForStock || stockAdjustment < 0) {
+      alert("Please enter a valid stock quantity");
+      return;
+    }
+
+    try {
+      const newStock = stockOperation === "add" 
+        ? selectedProductForStock.stock + stockAdjustment 
+        : stockAdjustment;
+
+      if (newStock < 0) {
+        alert("Stock cannot be negative");
+        return;
+      }
+
+      await sellerService.updateProduct(selectedProductForStock.id, {
+        stockQuantity: newStock,
+      });
+
+      // Reload products
+      const sellerProducts = await sellerService.getSellerProducts(currentSeller?.email || "");
+      const formattedProducts = sellerProducts.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: `₹${p.price}`,
+        stock: p.stockQuantity,
+        sales: p.sales || 0,
+        image: p.images[0] || "https://via.placeholder.com/100",
+        rawPrice: p.price
+      }));
+      setProducts(formattedProducts);
+
+      setShowStockModal(false);
+      setSelectedProductForStock(null);
+      setStockAdjustment(0);
+      alert("Stock updated successfully!");
+    } catch (error) {
+      console.error("Error updating stock:", error);
+      alert("Failed to update stock. Please try again.");
+    }
+  };
+
+  // Handle return request actions
+  const handleReturnAction = async (returnId: string, action: string) => {
+    try {
+      const { doc, updateDoc } = await import("firebase/firestore");
+      const { db } = await import("../services/firebaseConfig");
+      
+      await updateDoc(doc(db, "returns", returnId), {
+        status: action,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Reload returns
+      const { collection, query, where, getDocs } = await import("firebase/firestore");
+      const returnsQuery = query(
+        collection(db, "returns"),
+        where("sellerEmail", "==", currentSeller?.email)
+      );
+      const returnsSnapshot = await getDocs(returnsQuery);
+      const sellerReturns = returnsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReturns(sellerReturns);
+
+      alert(`Return request ${action} successfully!`);
+    } catch (error) {
+      console.error("Error updating return status:", error);
+      alert("Failed to update return status. Please try again.");
+    }
+  };
+
+  const handleViewReturnDetails = (returnItem: any) => {
+    setSelectedReturn(returnItem);
+    setShowReturnDetailsModal(true);
+  };
+
+  const handleMarkAsReturned = async () => {
+    if (!selectedReturn) return;
+
+    try {
+      const { doc, updateDoc, getDoc, increment } = await import("firebase/firestore");
+      const { db } = await import("../services/firebaseConfig");
+      
+      // Update return status to completed
+      await updateDoc(doc(db, "returns", selectedReturn.id), {
+        status: "completed",
+        returnedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Restore stock for the returned product
+      try {
+        const productRef = doc(db, "products", selectedReturn.productId);
+        const productSnap = await getDoc(productRef);
+        
+        if (productSnap.exists()) {
+          await updateDoc(productRef, {
+            stockQuantity: increment(selectedReturn.quantity),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.error(`Error restoring stock for product ${selectedReturn.productId}:`, error);
+      }
+
+      // Reload returns
+      const { collection, query, where, getDocs } = await import("firebase/firestore");
+      const returnsQuery = query(
+        collection(db, "returns"),
+        where("sellerEmail", "==", currentSeller?.email)
+      );
+      const returnsSnapshot = await getDocs(returnsQuery);
+      const sellerReturns = returnsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReturns(sellerReturns);
+
+      // Reload products to show updated stock
+      const sellerProducts = await sellerService.getSellerProducts(currentSeller?.email || "");
+      const formattedProducts = sellerProducts.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: `₹${p.price}`,
+        stock: p.stockQuantity,
+        sales: p.sales || 0,
+        image: p.images[0] || "https://via.placeholder.com/100",
+        rawPrice: p.price
+      }));
+      setProducts(formattedProducts);
+
+      setShowReturnDetailsModal(false);
+      setSelectedReturn(null);
+      alert("Return marked as completed and stock has been restored!");
+    } catch (error) {
+      console.error("Error marking return as completed:", error);
+      alert("Failed to complete return. Please try again.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -744,27 +1019,34 @@ export default function SellerDashboardPage() {
                 <div className="bg-white rounded-2xl border-2 shadow-sm p-6" style={{ borderColor: '#e5e7eb' }}>
                   <h3 className="text-xl font-bold text-gray-900 mb-4">Top Selling Products</h3>
                   <div className="space-y-4">
-                    {products.slice(0, 3).map((product, index) => (
-                      <div key={product.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center space-x-4">
-                          <span className="text-2xl font-bold text-gray-300">#{index + 1}</span>
-                          <img 
-                            src={product.image} 
-                            alt={product.name}
-                            className="w-12 h-12 rounded-lg object-cover border-2"
-                            style={{ borderColor: '#e5e7eb' }}
-                          />
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{product.name}</p>
-                            <p className="text-xs text-gray-500">{product.category}</p>
+                    {topProducts.slice(0, 3).length > 0 ? (
+                      topProducts.slice(0, 3).map((product, index) => (
+                        <div key={product.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center space-x-4">
+                            <span className="text-2xl font-bold text-gray-300">#{index + 1}</span>
+                            <img 
+                              src={product.image} 
+                              alt={product.name}
+                              className="w-12 h-12 rounded-lg object-cover border-2"
+                              style={{ borderColor: '#e5e7eb' }}
+                            />
+                            <div>
+                              <p className="text-sm font-bold text-gray-900">{product.name}</p>
+                              <p className="text-xs text-gray-500">{product.category}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-gray-900">{product.actualSales} sales</p>
+                            <p className="text-xs text-gray-500">₹{product.actualRevenue.toLocaleString('en-IN')}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-gray-900">{product.sales} sales</p>
-                          <p className="text-xs text-gray-500">{product.price}</p>
-                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8">
+                        <Package className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No sales data yet</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -853,11 +1135,31 @@ export default function SellerDashboardPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center space-x-2">
-                              <span className={`text-sm font-semibold ${product.stock < 30 ? 'text-red-600' : 'text-gray-900'}`}>
+                              <span className={`text-sm font-semibold ${
+                                product.stock === 0 ? 'text-red-600' :
+                                product.stock <= 5 ? 'text-red-600' :
+                                product.stock <= 20 ? 'text-orange-600' : 
+                                'text-gray-900'
+                              }`}>
                                 {product.stock}
                               </span>
-                              {product.stock < 30 && (
-                                <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">Low</span>
+                              {product.stock === 0 && (
+                                <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded flex items-center">
+                                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1"></span>
+                                  Out
+                                </span>
+                              )}
+                              {product.stock > 0 && product.stock <= 5 && (
+                                <span className="px-2 py-0.5 text-xs font-bold bg-red-100 text-red-700 rounded flex items-center animate-pulse">
+                                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1"></span>
+                                  Critical
+                                </span>
+                              )}
+                              {product.stock > 5 && product.stock <= 20 && (
+                                <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded flex items-center">
+                                  <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-1"></span>
+                                  Low
+                                </span>
                               )}
                             </div>
                           </td>
@@ -866,11 +1168,24 @@ export default function SellerDashboardPage() {
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              product.stock > 50 ? 'bg-green-100 text-green-700' : 
-                              product.stock > 20 ? 'bg-yellow-100 text-yellow-700' : 
-                              'bg-red-100 text-red-700'
+                              product.stock === 0 ? 'bg-red-100 text-red-700' :
+                              product.stock <= 5 ? 'bg-red-100 text-red-700' :
+                              product.stock <= 20 ? 'bg-orange-100 text-orange-700' :
+                              product.stock <= 50 ? 'bg-yellow-100 text-yellow-700' : 
+                              'bg-green-100 text-green-700'
                             }`}>
-                              {product.stock > 50 ? 'In Stock' : product.stock > 20 ? 'Low Stock' : 'Critical'}
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                product.stock === 0 ? 'bg-red-500' :
+                                product.stock <= 5 ? 'bg-red-500 animate-pulse' :
+                                product.stock <= 20 ? 'bg-orange-500' :
+                                product.stock <= 50 ? 'bg-yellow-500' : 
+                                'bg-green-500'
+                              }`}></span>
+                              {product.stock === 0 ? 'Out of Stock' :
+                               product.stock <= 5 ? 'Critical' :
+                               product.stock <= 20 ? 'Low Stock' :
+                               product.stock <= 50 ? 'Moderate' : 
+                               'In Stock'}
                             </span>
                           </td>
                           <td className="px-6 py-4">
@@ -1075,11 +1390,16 @@ export default function SellerDashboardPage() {
                   <h2 className="text-2xl font-bold text-gray-900 mb-1">Analytics</h2>
                   <p className="text-sm text-gray-500">Track your business performance and insights</p>
                 </div>
-                <select className="px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" style={{ borderColor: '#e5e7eb' }}>
-                  <option>Last 7 Days</option>
-                  <option>Last 30 Days</option>
-                  <option>Last 3 Months</option>
-                  <option>Last Year</option>
+                <select 
+                  value={analyticsPeriod}
+                  onChange={(e) => setAnalyticsPeriod(e.target.value)}
+                  className="px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                  style={{ borderColor: '#e5e7eb' }}
+                >
+                  <option value="7">Last 7 Days</option>
+                  <option value="30">Last 30 Days</option>
+                  <option value="90">Last 3 Months</option>
+                  <option value="365">Last Year</option>
                 </select>
               </div>
 
@@ -1116,11 +1436,11 @@ export default function SellerDashboardPage() {
                   </div>
                   <p className="text-sm text-gray-500 mb-1">Avg Order Value</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{orders.length > 0 ? Math.round(
-                      orders.reduce((sum, order) => {
-                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
+                    ₹{validOrders.length > 0 ? Math.round(
+                      validOrders.reduce((sum, order) => {
+                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email || item.sellerEmail === currentSeller?.email) || [];
                         return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
-                      }, 0) / orders.length
+                      }, 0) / validOrders.length
                     ).toLocaleString('en-IN') : '0'}
                   </p>
                 </div>
@@ -1137,76 +1457,47 @@ export default function SellerDashboardPage() {
                 </div>
               </div>
 
-              {/* Charts */}
+              {/* Order Status Breakdown */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-bold text-gray-900">Revenue Trend</h3>
-                    <span className="text-xs text-gray-500">Last 7 days</span>
-                  </div>
-                  <div className="h-64 relative">
-                    {/* Area Chart */}
-                    <svg className="w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" style={{ stopColor: '#5eead4', stopOpacity: 0.6 }} />
-                          <stop offset="100%" style={{ stopColor: '#5eead4', stopOpacity: 0.05 }} />
-                        </linearGradient>
-                      </defs>
-                      {/* Sharp area fill */}
-                      <path
-                        d="M 0,140 L 30,80 L 60,100 L 90,70 L 120,90 L 150,60 L 180,50 L 210,75 L 240,55 L 270,85 L 300,70 L 330,95 L 360,80 L 400,110 L 400,200 L 0,200 Z"
-                        fill="url(#areaGradient)"
-                      />
-                      {/* Sharp line */}
-                      <path
-                        d="M 0,140 L 30,80 L 60,100 L 90,70 L 120,90 L 150,60 L 180,50 L 210,75 L 240,55 L 270,85 L 300,70 L 330,95 L 360,80 L 400,110"
-                        fill="none"
-                        stroke="#5eead4"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="miter"
-                      />
-                    </svg>
-                    {/* X-axis labels */}
-                    <div className="absolute bottom-0 w-full flex justify-between px-2 pb-2">
-                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
-                        <span key={i} className="text-xs text-gray-500">{day}</span>
-                      ))}
-                    </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Order Status Breakdown</h3>
+                  <div className="space-y-3">
+                    {[
+                      { status: 'pending', label: 'Pending', color: 'bg-yellow-500', count: validOrders.filter(o => o.status === 'pending').length },
+                      { status: 'processing', label: 'Processing', color: 'bg-blue-500', count: validOrders.filter(o => o.status === 'processing').length },
+                      { status: 'confirmed', label: 'Confirmed', color: 'bg-indigo-500', count: validOrders.filter(o => o.status === 'confirmed').length },
+                      { status: 'shipped', label: 'Shipped', color: 'bg-purple-500', count: validOrders.filter(o => o.status === 'shipped').length },
+                      { status: 'delivered', label: 'Delivered', color: 'bg-green-500', count: validOrders.filter(o => o.status === 'delivered').length },
+                      { status: 'cancelled', label: 'Cancelled', color: 'bg-red-500', count: orders.filter(o => o.status === 'cancelled').length },
+                    ].map((item) => (
+                      <div key={item.status} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
+                          <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                        </div>
+                        <span className="text-lg font-bold text-gray-900">{item.count}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-bold text-gray-900">Sales by Category</h3>
-                    <span className="text-xs text-gray-500">This month</span>
-                  </div>
-                  <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Returns Summary</h3>
+                  <div className="space-y-3">
                     {[
-                      { name: 'Clothing', value: 45, color: '#a78bfa' },
-                      { name: 'Footwear', value: 30, color: '#60a5fa' },
-                      { name: 'Accessories', value: 25, color: '#34d399' }
-                    ].map((category, i) => (
-                      <div key={i}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">{category.name}</span>
-                          <span className="text-sm font-bold text-gray-900">{category.value}%</span>
+                      { status: 'pending', label: 'Pending Returns', color: 'bg-yellow-500', count: returns.filter(r => r.status === 'pending').length },
+                      { status: 'approved', label: 'Approved Returns', color: 'bg-green-500', count: returns.filter(r => r.status === 'approved').length },
+                      { status: 'rejected', label: 'Rejected Returns', color: 'bg-red-500', count: returns.filter(r => r.status === 'rejected').length },
+                      { status: 'completed', label: 'Completed Returns', color: 'bg-blue-500', count: returns.filter(r => r.status === 'completed').length },
+                    ].map((item) => (
+                      <div key={item.status} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
+                          <span className="text-sm font-medium text-gray-700">{item.label}</span>
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-3">
-                          <div 
-                            className="h-3 rounded-full transition-all"
-                            style={{ width: `${category.value}%`, backgroundColor: category.color }}
-                          ></div>
-                        </div>
+                        <span className="text-lg font-bold text-gray-900">{item.count}</span>
                       </div>
                     ))}
-                  </div>
-                  <div className="mt-6 pt-6 border-t" style={{ borderColor: '#f3f4f6' }}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Total Sales</span>
-                      <span className="font-bold text-gray-900">₹1,24,500</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1215,31 +1506,48 @@ export default function SellerDashboardPage() {
               <div className="bg-white rounded-2xl border" style={{ borderColor: '#e5e7eb' }}>
                 <div className="p-6 border-b" style={{ borderColor: '#f3f4f6' }}>
                   <h3 className="text-lg font-bold text-gray-900">Top Selling Products</h3>
+                  <p className="text-sm text-gray-500 mt-1">Based on actual order data</p>
                 </div>
                 <div className="p-6">
-                  <div className="space-y-4">
-                    {products.map((product, index) => (
-                      <div key={product.id} className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center space-x-4">
-                          <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
-                          <img 
-                            src={product.image} 
-                            alt={product.name}
-                            className="w-12 h-12 rounded-lg object-cover border"
-                            style={{ borderColor: '#e5e7eb' }}
-                          />
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">{product.name}</p>
-                            <p className="text-xs text-gray-500">{product.category}</p>
+                  {topProducts.length > 0 ? (
+                    <div className="space-y-4">
+                      {topProducts.map((product, index) => (
+                        <div key={product.id} className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors border" style={{ borderColor: '#e5e7eb' }}>
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold text-sm">
+                              #{index + 1}
+                            </div>
+                            <img 
+                              src={product.image} 
+                              alt={product.name}
+                              className="w-14 h-14 rounded-lg object-cover border-2"
+                              style={{ borderColor: '#e5e7eb' }}
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{product.name}</p>
+                              <p className="text-xs text-gray-500">{product.category}</p>
+                              <p className="text-xs text-blue-600 font-medium mt-1">Stock: {product.stock}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-gray-900">{product.actualSales}</p>
+                            <p className="text-xs text-gray-500">units sold</p>
+                            <p className="text-sm font-semibold text-green-600 mt-1">
+                              ₹{product.actualRevenue.toLocaleString('en-IN')}
+                            </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-gray-900">{product.sales} sales</p>
-                          <p className="text-xs text-gray-500">{product.price}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">No Sales Data Yet</h4>
+                      <p className="text-sm text-gray-500">
+                        Once customers start purchasing your products, sales data will appear here.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -1278,26 +1586,95 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      <tr>
-                        <td colSpan={8} className="px-6 py-16 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-orange-50 rounded-full flex items-center justify-center mb-4">
-                              <TrendingUp className="w-10 h-10 text-orange-500" />
+                      {returns.map((returnItem: any) => (
+                        <tr key={returnItem.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-bold text-gray-900">#{returnItem.id.slice(0, 8)}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{returnItem.customerName}</p>
+                              <p className="text-xs text-gray-500">{returnItem.customerEmail}</p>
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Returns Yet</h3>
-                            <p className="text-sm text-gray-500 max-w-md">
-                              You don't have any return requests at the moment. When customers request returns, they'll appear here.
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <img src={returnItem.productImage} alt={returnItem.productName} className="w-10 h-10 rounded object-cover" />
+                              <span className="text-sm text-gray-700">{returnItem.productName}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm text-gray-700 capitalize">{returnItem.reason.replace(/_/g, ' ')}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-bold text-gray-900">₹{(returnItem.price * returnItem.quantity).toLocaleString('en-IN')}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm text-gray-600">
+                              {new Date(returnItem.createdAt).toLocaleDateString('en-IN')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              returnItem.status === 'approved' ? 'bg-green-100 text-green-800' :
+                              returnItem.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                              returnItem.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {returnItem.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end space-x-2">
+                              {returnItem.status === 'pending' && (
+                                <>
+                                  <button 
+                                    onClick={() => handleReturnAction(returnItem.id, 'approved')}
+                                    className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button 
+                                    onClick={() => handleReturnAction(returnItem.id, 'rejected')}
+                                    className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                              <button 
+                                onClick={() => handleViewReturnDetails(returnItem)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {returns.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-6 py-16 text-center">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-orange-50 rounded-full flex items-center justify-center mb-4">
+                                <TrendingUp className="w-10 h-10 text-orange-500" />
+                              </div>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Returns Yet</h3>
+                              <p className="text-sm text-gray-500 max-w-md">
+                                You don't have any return requests at the moment. When customers request returns, they'll appear here.
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">0</span> of <span className="font-semibold text-gray-900">0</span> returns</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{returns.length}</span> of <span className="font-semibold text-gray-900">{returns.length}</span> returns</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -1319,16 +1696,17 @@ export default function SellerDashboardPage() {
                   <p className="text-sm text-gray-500">Track and manage your product stock levels</p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <select className="px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" style={{ borderColor: '#e5e7eb' }}>
-                    <option>All Products</option>
-                    <option>Low Stock</option>
-                    <option>Out of Stock</option>
-                    <option>In Stock</option>
+                  <select 
+                    value={inventoryFilter}
+                    onChange={(e) => setInventoryFilter(e.target.value)}
+                    className="px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                    style={{ borderColor: '#e5e7eb' }}
+                  >
+                    <option value="all">All Products</option>
+                    <option value="low">Low Stock</option>
+                    <option value="out">Out of Stock</option>
+                    <option value="in">In Stock</option>
                   </select>
-                  <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <Plus className="w-4 h-4" />
-                    <span className="text-sm">Add Stock</span>
-                  </button>
                 </div>
               </div>
 
@@ -1382,7 +1760,7 @@ export default function SellerDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {products.map((product) => (
+                      {filteredInventory.map((product) => (
                         <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center space-x-3">
@@ -1394,12 +1772,12 @@ export default function SellerDashboardPage() {
                               />
                               <div>
                                 <p className="text-sm font-semibold text-gray-900">{product.name}</p>
-                                <p className="text-xs text-gray-500">ID: #{product.id}</p>
+                                <p className="text-xs text-gray-500">ID: #{product.id.slice(0, 8)}</p>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-sm text-gray-700">SKU-{product.id}00{product.stock}</span>
+                            <span className="text-sm text-gray-700">SKU-{product.id.slice(0, 8)}</span>
                           </td>
                           <td className="px-6 py-4">
                             <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700">
@@ -1419,17 +1797,19 @@ export default function SellerDashboardPage() {
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
                               product.stock > 50 ? 'bg-green-100 text-green-700' : 
                               product.stock > 20 ? 'bg-yellow-100 text-yellow-700' : 
-                              'bg-red-100 text-red-700'
+                              product.stock === 0 ? 'bg-red-100 text-red-700' :
+                              'bg-orange-100 text-orange-700'
                             }`}>
-                              {product.stock > 50 ? 'In Stock' : product.stock > 20 ? 'Low Stock' : 'Critical'}
+                              {product.stock > 50 ? 'In Stock' : product.stock > 20 ? 'Low Stock' : product.stock === 0 ? 'Out of Stock' : 'Critical'}
                             </span>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end space-x-2">
-                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Update Stock">
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Add Stock">
+                              <button 
+                                onClick={() => handleOpenStockModal(product, "add")}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
+                                title="Add Stock"
+                              >
                                 <Plus className="w-4 h-4" />
                               </button>
                             </div>
@@ -1442,7 +1822,7 @@ export default function SellerDashboardPage() {
                 
                 {/* Table Footer */}
                 <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{products.length}</span> of <span className="font-semibold text-gray-900">{products.length}</span> items</p>
+                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{filteredInventory.length}</span> of <span className="font-semibold text-gray-900">{products.length}</span> items</p>
                   <div className="flex items-center space-x-2">
                     <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
                       Previous
@@ -2373,6 +2753,232 @@ export default function SellerDashboardPage() {
               <button onClick={() => setShowOrderStatusModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Update Modal */}
+      {showStockModal && selectedProductForStock && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">
+                {stockOperation === "add" ? "Add Stock" : "Set Stock"}
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">{selectedProductForStock.name}</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600">Current Stock</p>
+                <p className="text-2xl font-bold text-gray-900">{selectedProductForStock.stock} units</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {stockOperation === "add" ? "Quantity to Add" : "New Stock Quantity"}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={stockAdjustment}
+                  onChange={(e) => setStockAdjustment(parseInt(e.target.value) || 0)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter quantity"
+                />
+              </div>
+
+              {stockOperation === "add" && stockAdjustment > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-900">
+                    <strong>New Stock:</strong> {selectedProductForStock.stock + stockAdjustment} units
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowStockModal(false);
+                    setSelectedProductForStock(null);
+                    setStockAdjustment(0);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateStock}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Update Stock
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Return Details Modal */}
+      {showReturnDetailsModal && selectedReturn && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Return Request Details</h3>
+                <p className="text-sm text-gray-600">Return ID: #{selectedReturn.id.slice(0, 8)}</p>
+              </div>
+              <button
+                onClick={() => setShowReturnDetailsModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Current Status</p>
+                  <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold ${
+                    selectedReturn.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    selectedReturn.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                    selectedReturn.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedReturn.status === 'pending' ? '⏳ Pending Review' :
+                     selectedReturn.status === 'approved' ? '✓ Approved' :
+                     selectedReturn.status === 'rejected' ? '✗ Rejected' :
+                     '✓ Completed'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Requested On</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {new Date(selectedReturn.createdAt).toLocaleDateString('en-IN', { 
+                      day: 'numeric', 
+                      month: 'short', 
+                      year: 'numeric' 
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Customer Information */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Users className="w-5 h-5 mr-2 text-blue-600" />
+                  Customer Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Name</p>
+                    <p className="font-medium text-gray-900">{selectedReturn.customerName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="font-medium text-gray-900">{selectedReturn.customerEmail}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Order Number</p>
+                    <p className="font-medium text-gray-900">#{selectedReturn.orderNumber}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Information */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Package className="w-5 h-5 mr-2 text-purple-600" />
+                  Product Details
+                </h4>
+                <div className="flex items-center space-x-4 mb-4">
+                  <img 
+                    src={selectedReturn.productImage} 
+                    alt={selectedReturn.productName}
+                    className="w-20 h-20 rounded-lg object-cover border-2 border-gray-200"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900">{selectedReturn.productName}</p>
+                    <p className="text-sm text-gray-600">Quantity: {selectedReturn.quantity}</p>
+                    <p className="text-lg font-bold text-gray-900 mt-1">
+                      ₹{(selectedReturn.price * selectedReturn.quantity).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Return Reason */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-3">Return Reason</h4>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+                  <p className="text-sm font-semibold text-orange-900 capitalize">
+                    {selectedReturn.reason.replace(/_/g, ' ')}
+                  </p>
+                </div>
+                {selectedReturn.description && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Additional Details:</p>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">
+                      {selectedReturn.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowReturnDetailsModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                
+                {selectedReturn.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        handleReturnAction(selectedReturn.id, 'rejected');
+                        setShowReturnDetailsModal(false);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center space-x-2"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>Reject Return</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleReturnAction(selectedReturn.id, 'approved');
+                        setShowReturnDetailsModal(false);
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Approve Return</span>
+                    </button>
+                  </>
+                )}
+
+                {selectedReturn.status === 'approved' && (
+                  <button
+                    onClick={handleMarkAsReturned}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                  >
+                    <Package className="w-4 h-4" />
+                    <span>Mark as Returned (Product Received)</span>
+                  </button>
+                )}
+
+                {selectedReturn.status === 'completed' && (
+                  <div className="px-4 py-2 bg-blue-50 text-blue-800 rounded-lg border border-blue-200 flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Return Completed</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

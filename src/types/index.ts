@@ -61,7 +61,8 @@ export interface Order {
     | "confirmed"
     | "shipped"
     | "delivered"
-    | "cancelled";
+    | "cancelled"
+    | "returned";
   totalAmount: number;
   shippingAddress: Address;
   paymentMethod: string;
@@ -69,6 +70,9 @@ export interface Order {
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
+  returnRequested?: boolean;
+  returnReason?: string;
+  returnStatus?: "pending" | "approved" | "rejected" | "completed";
 }
 
 export interface OrderItem {
@@ -77,6 +81,10 @@ export interface OrderItem {
   productImage: string;
   quantity: number;
   price: number;
+  productId?: string;
+  sellerId?: string;
+  sellerEmail?: string;
+  sellerName?: string;
 }
 
 export interface Review {

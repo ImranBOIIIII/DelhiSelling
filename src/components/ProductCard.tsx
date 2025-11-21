@@ -118,14 +118,40 @@ export default function ProductCard({
           </Link>
         </div>
 
-        {product.stockQuantity < 10 && product.stockQuantity > 0 && (
-          <p className="text-xs text-orange-600 mt-2 font-medium">
-            Only {product.stockQuantity} left in stock!
-          </p>
+        {product.stockQuantity === 0 && (
+          <div className="mt-2 bg-red-50 border border-red-200 rounded-md px-2 py-1.5">
+            <p className="text-xs text-red-700 font-semibold flex items-center">
+              <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5"></span>
+              Out of Stock
+            </p>
+          </div>
         )}
 
-        {product.stockQuantity === 0 && (
-          <p className="text-xs text-red-600 mt-2 font-medium">Out of stock</p>
+        {product.stockQuantity > 0 && product.stockQuantity <= 5 && (
+          <div className="mt-2 bg-red-50 border border-red-200 rounded-md px-2 py-1.5">
+            <p className="text-xs text-red-700 font-semibold flex items-center">
+              <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5 animate-pulse"></span>
+              Critical: Only {product.stockQuantity} left!
+            </p>
+          </div>
+        )}
+
+        {product.stockQuantity > 5 && product.stockQuantity <= 20 && (
+          <div className="mt-2 bg-orange-50 border border-orange-200 rounded-md px-2 py-1.5">
+            <p className="text-xs text-orange-700 font-medium flex items-center">
+              <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-1.5"></span>
+              Low Stock: {product.stockQuantity} available
+            </p>
+          </div>
+        )}
+
+        {product.stockQuantity > 20 && (
+          <div className="mt-2 bg-green-50 border border-green-200 rounded-md px-2 py-1.5">
+            <p className="text-xs text-green-700 font-medium flex items-center">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
+              In Stock: {product.stockQuantity} available
+            </p>
+          </div>
         )}
       </div>
     </div>
