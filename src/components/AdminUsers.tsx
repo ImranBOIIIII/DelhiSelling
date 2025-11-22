@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Eye, Clock, Store } from "lucide-react";
+import { CheckCircle, XCircle, Eye, Clock, Store, DollarSign } from "lucide-react";
 import sellerService from "../services/sellerService";
+import paymentService from "../services/paymentService";
 
 export default function AdminUsers() {
   const [sellers, setSellers] = useState<any[]>([]);
@@ -10,6 +11,13 @@ export default function AdminUsers() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [deactivationReason, setDeactivationReason] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: 0,
+    paymentMethod: "bank_transfer" as "bank_transfer" | "upi" | "cash" | "cheque",
+    transactionId: "",
+    notes: "",
+  });
 
   useEffect(() => {
     loadSellers();
@@ -26,16 +34,16 @@ export default function AdminUsers() {
   };
 
   const filteredSellers = sellers.filter((seller) => {
-    const matchesFilter = 
-      filter === "all" || 
+    const matchesFilter =
+      filter === "all" ||
       (filter === "active" && seller.isActive) ||
       (filter === "inactive" && !seller.isActive);
-    
+
     const matchesSearch =
       seller.storeName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       seller.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       seller.ownerName?.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     return matchesFilter && matchesSearch;
   });
 
@@ -103,6 +111,62 @@ export default function AdminUsers() {
   const handleViewDetails = (seller: any) => {
     setSelectedSeller(seller);
     setShowDetailsModal(true);
+  };
+
+  const handleOpenPaymentModal = (seller: any) => {
+    setSelectedSeller(seller);
+    setShowPaymentModal(true);
+    setPaymentForm({
+      amount: 0,
+      paymentMethod: "bank_transfer",
+      transactionId: "",
+      notes: "",
+    });
+  };
+
+  const handleSendPayment = async () => {
+    if (!selectedSeller || paymentForm.amount <= 0) {
+      alert("Please enter a valid payment amount");
+      return;
+    }
+
+    try {
+      // Auto-generate transaction ID
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const autoTransactionId = `TXN-${timestamp}-${randomStr}`;
+
+      const paymentData: any = {
+        sellerId: selectedSeller.id,
+        sellerEmail: selectedSeller.email,
+        sellerName: selectedSeller.storeName,
+        amount: paymentForm.amount,
+        paymentMethod: paymentForm.paymentMethod,
+        transactionId: autoTransactionId,
+        paidBy: "Admin",
+        paidAt: new Date().toISOString(),
+      };
+
+      // Only add notes if provided
+      if (paymentForm.notes && paymentForm.notes.trim()) {
+        paymentData.notes = paymentForm.notes.trim();
+      }
+
+      await paymentService.addPayment(paymentData);
+
+      setShowPaymentModal(false);
+      setSelectedSeller(null);
+      setPaymentForm({
+        amount: 0,
+        paymentMethod: "bank_transfer",
+        transactionId: "",
+        notes: "",
+      });
+      alert(`Payment sent successfully! Transaction ID: ${autoTransactionId}\nThe seller will see it instantly in their dashboard.`);
+    } catch (error) {
+      console.error("Error sending payment:", error);
+      alert("Failed to send payment. Please try again.");
+    }
   };
 
 
@@ -302,6 +366,16 @@ export default function AdminUsers() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+                        {seller.isActive && (
+                          <button
+                            onClick={() => handleOpenPaymentModal(seller)}
+                            className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center gap-1"
+                            title="Send Payment"
+                          >
+                            <DollarSign className="w-3 h-3" />
+                            Pay
+                          </button>
+                        )}
                         {!seller.isVerified && (
                           <button
                             onClick={() => handleApprove(seller.id)}
@@ -617,6 +691,116 @@ export default function AdminUsers() {
                   className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                 >
                   Confirm Deactivation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedSeller && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Send Payment
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedSeller(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Sending payment to:</p>
+                <p className="text-lg font-semibold text-gray-900">{selectedSeller.storeName}</p>
+                <p className="text-sm text-gray-500">{selectedSeller.email}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  value={paymentForm.amount || ""}
+                  onChange={(e) =>
+                    setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter amount"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Payment Method *
+                </label>
+                <select
+                  value={paymentForm.paymentMethod}
+                  onChange={(e) =>
+                    setPaymentForm({
+                      ...paymentForm,
+                      paymentMethod: e.target.value as any,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="upi">UPI</option>
+                  <option value="cash">Cash</option>
+                  <option value="cheque">Cheque</option>
+                </select>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-700 font-medium">
+                  ℹ️ Transaction ID will be auto-generated
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={paymentForm.notes}
+                  onChange={(e) =>
+                    setPaymentForm({ ...paymentForm, notes: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Add any notes..."
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedSeller(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendPayment}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Send Payment
                 </button>
               </div>
             </div>

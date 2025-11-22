@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import sellerService from "../services/sellerService";
+import paymentService, { Payment } from "../services/paymentService";
 
 export default function SellerDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -79,10 +80,22 @@ export default function SellerDashboardPage() {
     navigate("/");
   };
 
+  const menuItems = [
+    { id: "home", label: "Home", icon: LayoutDashboard, color: "#f87171" },
+    { id: "products", label: "Products", icon: Package, color: "#a78bfa" },
+    { id: "orders", label: "Orders", icon: ShoppingCart, color: "#d4a574" },
+    { id: "returns", label: "Returns", icon: TrendingUp, color: "#ef4444" },
+    { id: "analytics", label: "Analytics", icon: BarChart3, color: "#60a5fa" },
+    { id: "inventory", label: "Inventory", icon: Package, color: "#f59e0b" },
+    { id: "payments", label: "Payments", icon: DollarSign, color: "#10b981" },
+  ];
+
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [returns, setReturns] = useState<any[]>([]);
   const [analyticsPeriod, setAnalyticsPeriod] = useState<string>("7");
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [totalPaymentsReceived, setTotalPaymentsReceived] = useState<number>(0);
   const [stats, setStats] = useState([
     { label: "Total Revenue", value: "₹0", change: "+0%", icon: DollarSign, color: "bg-green-500" },
     { label: "Total Orders", value: "0", change: "+0%", icon: ShoppingCart, color: "bg-blue-500" },
@@ -158,17 +171,22 @@ export default function SellerDashboardPage() {
     };
 
     loadData();
-  }, [currentSeller, activeTab]);
 
-  const menuItems = [
-    { id: "home", label: "Home", icon: LayoutDashboard, color: "#f87171" },
-    { id: "products", label: "Products", icon: Package, color: "#a78bfa" },
-    { id: "orders", label: "Orders", icon: ShoppingCart, color: "#d4a574" },
-    { id: "returns", label: "Returns", icon: TrendingUp, color: "#ef4444" },
-    { id: "analytics", label: "Analytics", icon: BarChart3, color: "#60a5fa" },
-    { id: "inventory", label: "Inventory", icon: Package, color: "#f59e0b" },
-    { id: "payments", label: "Payments", icon: DollarSign, color: "#10b981" },
-  ];
+    // Set up real-time payment listener
+    const unsubscribe = paymentService.subscribeToSellerPayments(
+      currentSeller.email,
+      (updatedPayments) => {
+        setPayments(updatedPayments);
+        const total = updatedPayments
+          .filter((p) => p.status === "completed")
+          .reduce((sum, p) => sum + p.amount, 0);
+        setTotalPaymentsReceived(total);
+      }
+    );
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, [currentSeller, activeTab]);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -1859,8 +1877,8 @@ export default function SellerDashboardPage() {
                       <DollarSign className="w-5 h-5 text-green-600" />
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Total Earnings</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats[0].value}</p>
+                  <p className="text-sm text-gray-500 mb-1">Total Received</p>
+                  <p className="text-2xl font-bold text-gray-900">₹{totalPaymentsReceived.toLocaleString('en-IN')}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -1869,13 +1887,8 @@ export default function SellerDashboardPage() {
                       <DollarSign className="w-5 h-5 text-blue-600" />
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Pending</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    ₹{orders.filter(o => o.status === 'Processing' || o.status === 'Pending').reduce((sum, order) => {
-                      const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
-                      return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
-                    }, 0).toLocaleString('en-IN')}
-                  </p>
+                  <p className="text-sm text-gray-500 mb-1">Total Payments</p>
+                  <p className="text-2xl font-bold text-gray-900">{payments.length}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl border p-6" style={{ borderColor: '#e5e7eb' }}>
@@ -1884,12 +1897,14 @@ export default function SellerDashboardPage() {
                       <DollarSign className="w-5 h-5 text-purple-600" />
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">Completed</p>
+                  <p className="text-sm text-gray-500 mb-1">This Month</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{orders.filter(o => o.status === 'Delivered').reduce((sum, order) => {
-                      const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
-                      return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
-                    }, 0).toLocaleString('en-IN')}
+                    ₹{payments.filter(p => {
+                      const paymentDate = new Date(p.paidAt);
+                      const now = new Date();
+                      return paymentDate.getMonth() === now.getMonth() && 
+                             paymentDate.getFullYear() === now.getFullYear();
+                    }).reduce((sum, p) => sum + p.amount, 0).toLocaleString('en-IN')}
                   </p>
                 </div>
 
@@ -1899,93 +1914,99 @@ export default function SellerDashboardPage() {
                       <DollarSign className="w-5 h-5 text-orange-600" />
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">In Transit</p>
+                  <p className="text-sm text-gray-500 mb-1">Last Payment</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{orders.filter(o => o.status === 'Shipped').reduce((sum, order) => {
-                      const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
-                      return sum + sellerItems.reduce((itemSum: number, item: any) => itemSum + (item.price * item.quantity), 0);
-                    }, 0).toLocaleString('en-IN')}
+                    ₹{payments.length > 0 ? payments[0].amount.toLocaleString('en-IN') : '0'}
                   </p>
                 </div>
               </div>
 
-              {/* Transactions Table */}
-              <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
+              {/* Payments Received from Admin */}
+              <div className="bg-white rounded-2xl border overflow-hidden mb-6" style={{ borderColor: '#e5e7eb' }}>
+                <div className="p-6 border-b" style={{ borderColor: '#f3f4f6' }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Payments Received</h3>
+                      <p className="text-sm text-gray-500 mt-1">Payments sent by admin</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">Total Received</p>
+                      <p className="text-2xl font-bold text-green-600">₹{totalPaymentsReceived.toLocaleString('en-IN')}</p>
+                    </div>
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead style={{ backgroundColor: '#f8f9fa' }}>
                       <tr>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Transaction ID</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Order ID</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Payment ID</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Method</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Transaction ID</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Notes</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {orders.map((order) => {
-                        const sellerItems = order.items?.filter((item: any) => item.sellerId === currentSeller?.email) || [];
-                        const orderTotal = sellerItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-                        
-                        return (
-                          <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                      {payments.length > 0 ? (
+                        payments.map((payment) => (
+                          <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4">
-                              <span className="text-sm font-bold text-gray-900">#TXN-{order.id}</span>
+                              <span className="text-sm font-bold text-gray-900">#{payment.id?.slice(0, 8) || 'N/A'}</span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-green-50 text-green-700">
-                                Sale
+                              <span className="text-lg font-bold text-green-600">
+                                ₹{(payment.amount || 0).toLocaleString('en-IN')}
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-sm text-gray-700">#{order.id}</span>
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 capitalize">
+                                {payment.paymentMethod ? payment.paymentMethod.replace(/_/g, ' ') : 'N/A'}
+                              </span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-sm font-bold text-green-600">
-                                +₹{orderTotal.toLocaleString('en-IN')}
+                              <span className="text-sm text-gray-700">
+                                {payment.transactionId || 'N/A'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
                               <div>
                                 <p className="text-sm text-gray-700">
-                                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'N/A'}
+                                  {payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  {order.createdAt ? new Date(order.createdAt).getFullYear() : ''}
+                                  {payment.paidAt ? new Date(payment.paidAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </p>
                               </div>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                                order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
-                                'bg-yellow-100 text-yellow-700'
+                                payment.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
                               }`}>
-                                {order.status || 'Pending'}
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                {payment.status || 'pending'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <div className="flex items-center justify-end space-x-2">
-                                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                              </div>
+                              <span className="text-sm text-gray-600">
+                                {payment.notes || '-'}
+                              </span>
                             </td>
                           </tr>
-                        );
-                      })}
-                      {orders.length === 0 && (
+                        ))
+                      ) : (
                         <tr>
                           <td colSpan={7} className="px-6 py-16 text-center">
                             <div className="flex flex-col items-center justify-center">
                               <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-50 rounded-full flex items-center justify-center mb-4">
                                 <DollarSign className="w-10 h-10 text-green-500" />
                               </div>
-                              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Transactions Yet</h3>
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Payments Yet</h3>
                               <p className="text-sm text-gray-500 max-w-md">
-                                Your payment transactions will appear here once you start receiving orders and payments.
+                                You haven't received any payments yet. Once the admin sends payments, they'll appear here instantly.
                               </p>
                             </div>
                           </td>
@@ -1996,18 +2017,21 @@ export default function SellerDashboardPage() {
                 </div>
                 
                 {/* Table Footer */}
-                <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
-                  <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{orders.length}</span> of <span className="font-semibold text-gray-900">{orders.length}</span> transactions</p>
-                  <div className="flex items-center space-x-2">
-                    <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
-                      Previous
-                    </button>
-                    <button className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
-                      Next
-                    </button>
+                {payments.length > 0 && (
+                  <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
+                    <p className="text-sm text-gray-600">Showing <span className="font-semibold text-gray-900">{payments.length}</span> payment{payments.length !== 1 ? 's' : ''}</p>
+                    <div className="flex items-center space-x-2">
+                      <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }}>
+                        Previous
+                      </button>
+                      <button className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                        Next
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
+
             </>
           )}
 
