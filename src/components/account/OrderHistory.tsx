@@ -23,6 +23,45 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
 
   useEffect(() => {
     loadOrders();
+    
+    // Set up real-time listener for order updates
+    const setupRealtimeListener = async () => {
+      const user = firebaseAuthService.getCurrentUser();
+      if (!user?.email) return;
+
+      const { collection, query, where, onSnapshot } = await import("firebase/firestore");
+      const { db } = await import("../../services/firebaseConfig");
+      
+      // Listen to orders collection for changes
+      const ordersQuery = query(
+        collection(db, "orders"),
+        where("customerEmail", "==", user.email.toLowerCase())
+      );
+      
+      const unsubscribeOrders = onSnapshot(ordersQuery, () => {
+        // Reload orders when any change is detected
+        loadOrders();
+      });
+
+      // Listen to returns collection for changes
+      const returnsQuery = query(
+        collection(db, "returns"),
+        where("customerEmail", "==", user.email.toLowerCase())
+      );
+      
+      const unsubscribeReturns = onSnapshot(returnsQuery, () => {
+        // Reload orders when any return status changes
+        loadOrders();
+      });
+
+      // Cleanup listeners on unmount
+      return () => {
+        unsubscribeOrders();
+        unsubscribeReturns();
+      };
+    };
+
+    setupRealtimeListener();
   }, []);
 
   const loadOrders = async () => {
@@ -85,6 +124,11 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
     statusFilter === "all"
       ? orders
       : orders.filter((order) => order.status === statusFilter);
+
+  // Sort orders by createdAt in descending order (latest first)
+  const sortedOrders = [...filteredOrders].sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -216,7 +260,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
         </div>
       </div>
 
-      {filteredOrders.length === 0 ? (
+      {sortedOrders.length === 0 ? (
         <div className="text-center py-12">
           <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -234,7 +278,7 @@ export default function OrderHistory({ onNavigate }: OrderHistoryProps) {
         </div>
       ) : (
         <div className="space-y-6">
-          {filteredOrders.map((order) => (
+          {sortedOrders.map((order) => (
             <div
               key={order.id}
               className="border border-gray-200 rounded-xl overflow-hidden"

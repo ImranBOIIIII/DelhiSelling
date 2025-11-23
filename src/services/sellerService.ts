@@ -115,7 +115,12 @@ class SellerService {
       const sellerDoc = querySnapshot.docs[0];
       const seller = { id: sellerDoc.id, ...sellerDoc.data() } as Seller;
 
-      // Save to localStorage
+      // Check if seller is active - DO NOT save to localStorage if inactive
+      if (!seller.isActive) {
+        throw new Error("Your account has been deactivated. Please contact support.");
+      }
+
+      // Only save to localStorage if seller is active
       localStorage.setItem("currentSeller", JSON.stringify(seller));
 
       return seller;

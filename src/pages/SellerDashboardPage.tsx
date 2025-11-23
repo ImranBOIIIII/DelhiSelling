@@ -56,14 +56,56 @@ export default function SellerDashboardPage() {
   
   const navigate = useNavigate();
 
-  // Check if seller is logged in
+  // Check if seller is logged in and not deactivated
   useEffect(() => {
-    const seller = localStorage.getItem("currentSeller");
-    if (!seller) {
-      navigate("/seller-login");
-    } else {
-      setCurrentSeller(JSON.parse(seller));
-    }
+    const checkSellerAccess = async () => {
+      const seller = localStorage.getItem("currentSeller");
+      if (!seller) {
+        navigate("/seller-login");
+        return;
+      }
+
+      const sellerData = JSON.parse(seller);
+      
+      // Verify seller status from Firebase
+      try {
+        const currentSellerData = await sellerService.getSellerByEmail(sellerData.email);
+        
+        if (!currentSellerData) {
+          // Seller not found in database
+          localStorage.removeItem("currentSeller");
+          alert("Your seller account was not found. Please contact support.");
+          navigate("/seller-login");
+          return;
+        }
+
+        if (!currentSellerData.isActive) {
+          // Seller is deactivated
+          localStorage.removeItem("currentSeller");
+          alert("Your seller account has been deactivated. Please contact support for more information.");
+          navigate("/seller-login");
+          return;
+        }
+
+        if (!currentSellerData.isVerified) {
+          // Seller is not verified yet
+          localStorage.removeItem("currentSeller");
+          alert("Your account is pending admin approval. Please wait for verification.");
+          navigate("/seller-login");
+          return;
+        }
+
+        // Update local storage with latest seller data
+        localStorage.setItem("currentSeller", JSON.stringify(currentSellerData));
+        setCurrentSeller(currentSellerData);
+      } catch (error) {
+        console.error("Error verifying seller status:", error);
+        // If there's an error, still allow access but log the error
+        setCurrentSeller(sellerData);
+      }
+    };
+
+    checkSellerAccess();
   }, [navigate]);
 
   // Update active tab when URL parameter changes
