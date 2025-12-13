@@ -38,8 +38,9 @@ export default function Footer({ onNavigate }: FooterProps) {
               </span>
             </div>
             <p className="text-sm mb-4">
-              Your trusted destination for premium mobile phones. Quality
-              products, unbeatable prices, and exceptional service.
+              Your trusted partner for bulk bag solutions. Premium quality,
+              competitive pricing, and reliable service for all your business
+              needs.
             </p>
             <div className="flex space-x-4">
               <a href="#" className="hover:text-blue-400 transition-colors">
