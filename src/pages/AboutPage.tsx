@@ -4,7 +4,7 @@ import logo from '../logo.webp';
 
 export default function AboutPage() {
   const navigate = useNavigate();
-  
+
   const handleAdminClick = (e: React.MouseEvent) => {
     e.preventDefault();
     navigate('/admin');
@@ -16,7 +16,7 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-5xl font-bold mb-6">About Delhi Selling</h1>
           <p className="text-xl text-blue-100 max-w-3xl mx-auto">
-           
+
           </p>
         </div>
       </div>
@@ -123,7 +123,7 @@ export default function AboutPage() {
               <div className="flex items-center space-x-2 mb-4">
                 <img src={logo} alt="Delhi Selling logo" className="w-10 h-10 rounded-lg object-contain bg-white" />
                 <span className="text-xl font-bold text-white">
-                  <span 
+                  <span
                     onClick={handleAdminClick}
                     style={{ cursor: 'text' }}
                   >
@@ -221,7 +221,7 @@ export default function AboutPage() {
                 </li>
                 <li className="flex items-center space-x-3">
                   <Phone className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                  <span>+91 98765 43210</span>
+                  <span>+91 92052 500690</span>
                 </li>
                 <li className="flex items-center space-x-3">
                   <Mail className="w-5 h-5 text-blue-400 flex-shrink-0" />
@@ -234,7 +234,7 @@ export default function AboutPage() {
           <div className="border-t border-gray-800 pt-8">
             <div className="flex flex-col justify-between items-center space-y-4">
               <p className="text-sm text-gray-400 text-center">
-                © 2025 <span 
+                © 2025 <span
                   onClick={handleAdminClick}
                   style={{ cursor: 'text' }}
                 >

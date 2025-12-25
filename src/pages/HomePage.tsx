@@ -1,22 +1,21 @@
 import {
-  ChevronRight,
   Package,
   TrendingUp,
   Shield,
   Truck,
   Megaphone,
   Sparkles,
+  Loader,
 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Product, Category } from "../types";
 import ProductCard from "../components/ProductCard";
 import SEO from "../components/SEO";
 import { getPageSEO } from "../utils/seo";
 import DoodleUnderline from "../components/DoodleUnderline";
-// Replace localStorage-based adminService with Firebase admin service
 import firebaseAdminService from "../services/firebaseAdminService";
 import firebaseService from "../services/firebaseService";
+import { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 
 interface HomePageProps {
   products: Product[];
@@ -28,7 +27,7 @@ interface HomePageProps {
 }
 
 export default function HomePage({
-  products: initialProducts,
+  products: _,
   categories,
   onNavigate,
   onAddToCart,
@@ -37,41 +36,69 @@ export default function HomePage({
 }: HomePageProps) {
   const [homepageContent, setHomepageContent] = useState<any>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const observer = useRef<IntersectionObserver>();
 
-  // Refresh homepage content and products when component mounts or updates
+  // Fetch products with pagination
+  const fetchProducts = useCallback(async (isReset = false) => {
+    if (loadingMore && !isReset) return;
+
+    if (isReset) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const currentLastDoc = isReset ? null : lastDoc;
+
+      const { products: newProducts, lastVisible } = await firebaseService.getProductsPaginated(
+        currentLastDoc,
+        12, // Load 12 items at a time
+        {
+          sortBy: "featured" // Show featured products first
+        }
+      );
+
+      setProducts((prev) => {
+        if (isReset) return newProducts;
+        const existingIds = new Set(prev.map(p => p.id));
+        const uniqueNew = newProducts.filter(p => !existingIds.has(p.id));
+        return [...prev, ...uniqueNew];
+      });
+
+      setLastDoc(lastVisible);
+      setHasMore(newProducts.length >= 12);
+
+    } catch (error) {
+      console.error("Error loading products", error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [loadingMore, lastDoc]);
+
+  // Initial load
   useEffect(() => {
     const loadContent = async () => {
       try {
-        setLoading(true);
         const content = await firebaseAdminService.getHomepageContent();
         if (content) {
           setHomepageContent(content);
         }
-
-        // Get fresh products from Firebase admin service
-        const adminProducts = await firebaseAdminService.getAdminProducts();
-        setProducts(adminProducts.length > 0 ? adminProducts : initialProducts);
       } catch (error) {
         console.error("Error loading homepage content:", error);
-        // Fallback to initial data
-        setHomepageContent(null);
-        setProducts(initialProducts);
-      } finally {
-        setLoading(false);
       }
     };
 
     loadContent();
+    fetchProducts(true);
 
-    // Set up real-time listeners
-    const unsubscribeProducts = firebaseService.onProductsChange(
-      (updatedProducts) => {
-        setProducts(updatedProducts);
-      },
-    );
-
+    // Set up real-time listener for homepage content
     const unsubscribeHomepage = firebaseService.onHomepageContentChange(
       (content) => {
         if (content) {
@@ -80,60 +107,64 @@ export default function HomePage({
       },
     );
 
-    // Clean up listeners
     return () => {
-      unsubscribeProducts();
       unsubscribeHomepage();
     };
-  }, [initialProducts]);
+  }, []);
 
-  // Get dynamic counts from admin settings
-  const featuredProductsCount = homepageContent?.featuredProductsCount || 6;
-  const newArrivalsCount = homepageContent?.newArrivalsCount || 4;
+  // Infinite scroll observer
+  const lastElementRef = useCallback((node: HTMLDivElement) => {
+    if (loadingMore) return;
+    if (observer.current) observer.current.disconnect();
+
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        fetchProducts(false);
+      }
+    });
+
+    if (node) observer.current.observe(node);
+  }, [loadingMore, hasMore, fetchProducts]);
+
   const showCategories = homepageContent?.showCategories ?? true;
   const showFeatures = homepageContent?.showFeatures ?? true;
-
-  const featuredProducts = products
-    .filter((p) => p.isFeatured)
-    .slice(0, featuredProductsCount);
-  const newArrivals = products.slice(0, newArrivalsCount);
 
   // Use banners from admin or fallback to default
   const bannerSlides = homepageContent?.banners?.filter(
     (b: any) => b.isActive,
   ) || [
-    {
-      id: "1",
-      image:
-        "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=1920",
-      title: "Quality Bags in",
-      subtitle: "Bulk Quantities",
-      description:
-        "Wholesale bags for retailers. School bags, office bags, travel gear and more.",
-      isActive: true,
-      order: 1,
-    },
-  ];
+      {
+        id: "1",
+        image:
+          "https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg?auto=compress&cs=tinysrgb&w=1920",
+        title: "Quality Bags in",
+        subtitle: "Bulk Quantities",
+        description:
+          "Wholesale bags for retailers. School bags, office bags, travel gear and more.",
+        isActive: true,
+        order: 1,
+      },
+    ];
 
   // Use news from admin or fallback to default
   const newsItems = homepageContent?.marqueeNews?.filter(
     (n: any) => n.isActive,
   ) || [
-    {
-      id: "1",
-      icon: "sparkles" as const,
-      text: "New winter collection just dropped — bulk discounts available",
-      isActive: true,
-      order: 1,
-    },
-    {
-      id: "2",
-      icon: "megaphone" as const,
-      text: "Free delivery on bulk orders above ₹50,000 across India",
-      isActive: true,
-      order: 2,
-    },
-  ];
+      {
+        id: "1",
+        icon: "sparkles" as const,
+        text: "New winter collection just dropped — bulk discounts available",
+        isActive: true,
+        order: 1,
+      },
+      {
+        id: "2",
+        icon: "megaphone" as const,
+        text: "Free delivery on bulk orders above ₹50,000 across India",
+        isActive: true,
+        order: 2,
+      },
+    ];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -148,7 +179,7 @@ export default function HomePage({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <Loader className="animate-spin h-12 w-12 text-indigo-600 mx-auto" />
           <p className="mt-4 text-gray-600">Loading homepage...</p>
         </div>
       </div>
@@ -166,13 +197,12 @@ export default function HomePage({
           {bannerSlides.map((slide: any, index: number) => (
             <div
               key={index}
-              className={`absolute inset-0 transition-transform duration-1000 ease-in-out ${
-                index === currentSlide
-                  ? "translate-x-0"
-                  : index < currentSlide
-                    ? "-translate-x-full"
-                    : "translate-x-full"
-              }`}
+              className={`absolute inset-0 transition-transform duration-1000 ease-in-out ${index === currentSlide
+                ? "translate-x-0"
+                : index < currentSlide
+                  ? "-translate-x-full"
+                  : "translate-x-full"
+                }`}
             >
               <img
                 src={slide.image}
@@ -196,15 +226,6 @@ export default function HomePage({
                     <p className="text-base sm:text-lg md:text-xl text-gray-200 mb-4 sm:mb-8 leading-relaxed transform transition-all duration-700 delay-500 px-2 sm:px-0">
                       {slide.description}
                     </p>
-                    <div className="hidden sm:flex flex-col sm:flex-row gap-4 transform transition-all duration-700 delay-700">
-                      <Link
-                        to="/products"
-                        className="bg-white text-gray-900 px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 flex items-center justify-center space-x-2 shadow-lg"
-                      >
-                        <span>Browse Bags</span>
-                        <ChevronRight className="w-5 h-5" />
-                      </Link>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -218,9 +239,8 @@ export default function HomePage({
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full transition-all duration-300 ${
-                index === currentSlide ? "bg-white" : "bg-white/50"
-              }`}
+              className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full transition-all duration-300 ${index === currentSlide ? "bg-white" : "bg-white/50"
+                }`}
             />
           ))}
         </div>
@@ -265,13 +285,6 @@ export default function HomePage({
                   Explore our collection of premium bag categories
                 </p>
               </div>
-              <button
-                onClick={() => onNavigate("categories")}
-                className="hidden md:flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <span>View All</span>
-                <ChevronRight className="w-5 h-5" />
-              </button>
             </div>
 
             {/* Horizontal Scrolling Categories for Mobile */}
@@ -323,80 +336,64 @@ export default function HomePage({
         </section>
       )}
 
+      {/* Products Section with Infinite Scroll */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">
-                Featured{" "}
-                <span className="inline-block relative">
-                  Products
-                  <DoodleUnderline className="absolute left-0 right-0 -bottom-1" />
-                </span>
-              </h2>
-              <p className="text-gray-600 mt-2">
-                Handpicked selections just for you
-              </p>
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-gray-900">
+              Our{" "}
+              <span className="inline-block relative">
+                Products
+                <DoodleUnderline className="absolute left-0 right-0 -bottom-1" />
+              </span>
+            </h2>
+            <p className="text-gray-600 mt-2">
+              Discover our complete collection of premium bags
+            </p>
+          </div>
+
+          {products.length === 0 && !loadingMore ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600">No products available</p>
             </div>
-            <Link
-              to="/products"
-              className="hidden md:flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
-            >
-              <span>View All</span>
-              <ChevronRight className="w-5 h-5" />
-            </Link>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                {products.map((product, index) => {
+                  const isLast = index === products.length - 1;
+                  return (
+                    <div key={product.id} ref={isLast ? lastElementRef : null}>
+                      <ProductCard
+                        product={product}
+                        onNavigate={onNavigate}
+                        onAddToCart={onAddToCart}
+                        onToggleWishlist={onToggleWishlist}
+                        isInWishlist={wishlistIds.includes(product.id)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {featuredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onNavigate={onNavigate}
-                onAddToCart={onAddToCart}
-                onToggleWishlist={onToggleWishlist}
-                isInWishlist={wishlistIds.includes(product.id)}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
+              {loadingMore && (
+                <div className="py-8 flex justify-center w-full">
+                  <Loader className="animate-spin text-blue-600 w-8 h-8" />
+                </div>
+              )}
 
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">
-                New{" "}
-                <span className="inline-block relative">
-                  Arrivals
-                  <DoodleUnderline className="absolute left-0 right-0 -bottom-1" />
-                </span>
-              </h2>
-              <p className="text-gray-600 mt-2">
-                Latest additions to our collection
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {newArrivals.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onNavigate={onNavigate}
-                onAddToCart={onAddToCart}
-                onToggleWishlist={onToggleWishlist}
-                isInWishlist={wishlistIds.includes(product.id)}
-              />
-            ))}
-          </div>
+              {!hasMore && products.length > 0 && (
+                <div className="py-8 text-center text-gray-500 text-sm">
+                  You have reached the end of the list
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
 
       {/* Features Section - Show/Hide based on admin settings */}
       {showFeatures && (
-        <section className="hidden md:block py-12 bg-white border-b border-gray-100">
+        <section className="py-12 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
               <div className="flex flex-col items-center text-center space-y-3">
@@ -448,19 +445,6 @@ export default function HomePage({
           </div>
         </section>
       )}
-
-      {/* Mobile Call-to-Action Button */}
-      <section className="md:hidden py-8 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <Link
-            to="/products"
-            className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg flex items-center justify-center space-x-2 hover:bg-blue-700 transition-colors shadow-lg"
-          >
-            <span>Browse All Products</span>
-            <ChevronRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }

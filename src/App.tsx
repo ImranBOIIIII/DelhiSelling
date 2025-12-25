@@ -160,9 +160,9 @@ function AppContent() {
         return prev.map((item) =>
           item.product.id === product.id
             ? {
-                ...item,
-                quantity: Math.min(item.quantity + 1, product.stockQuantity),
-              }
+              ...item,
+              quantity: Math.min(item.quantity + 1, product.stockQuantity),
+            }
             : item,
         );
       }

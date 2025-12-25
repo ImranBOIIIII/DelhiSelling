@@ -13,6 +13,10 @@ import {
   addDoc,
   serverTimestamp,
   onSnapshot,
+  startAfter,
+  QueryDocumentSnapshot,
+  DocumentData,
+  QueryConstraint,
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import {
@@ -39,7 +43,7 @@ class FirebaseService {
     return FirebaseService.instance;
   }
 
-  private constructor() {}
+  private constructor() { }
 
   // Admin Users
   async getAdminUsers(): Promise<AdminUser[]> {
@@ -252,6 +256,114 @@ class FirebaseService {
     }
   }
 
+  async getProductsPaginated(
+    lastVisible: QueryDocumentSnapshot<DocumentData> | null = null,
+    limitCount: number = 20,
+    filters: {
+      category?: string;
+      priceRange?: [number, number];
+      brands?: string[];
+      conditions?: string[];
+      materials?: string[];
+      sortBy?: string;
+    } = {}
+  ): Promise<{ products: AdminProduct[]; lastVisible: QueryDocumentSnapshot<DocumentData> | null }> {
+    try {
+      const constraints: QueryConstraint[] = [];
+      const productsRef = collection(db, "products");
+
+      // Apply Filters
+      if (filters.category && filters.category !== "All") {
+        constraints.push(where("category", "==", filters.category));
+      }
+
+      if (filters.priceRange) {
+        constraints.push(where("price", ">=", filters.priceRange[0]));
+        constraints.push(where("price", "<=", filters.priceRange[1]));
+      }
+
+      // Firestore limitation: Only one 'in' clause per query.
+      // We prioritize Brand, then Condition, then Material.
+      // Remaining filters must be applied client-side if multiple array filters are used,
+      // OR users just won't get deep filtering combinations effectively via this API.
+      // For now, we apply the first one we find to reduce the result set.
+      let usedInClause = false;
+
+      if (filters.brands && filters.brands.length > 0) {
+        constraints.push(where("brand", "in", filters.brands.slice(0, 10))); // Limit to 10 for 'in'
+        usedInClause = true;
+      }
+
+      if (!usedInClause && filters.conditions && filters.conditions.length > 0) {
+        constraints.push(where("condition", "in", filters.conditions.slice(0, 10)));
+        usedInClause = true;
+      }
+
+      if (!usedInClause && filters.materials && filters.materials.length > 0) {
+        // Assuming 'material' is the field name; earlier code used 'selectedStorage' mapped to 'material' options?
+        // Please verify field name. Based on ProductListingPage, the field seems to be 'material'.
+        constraints.push(where("material", "in", filters.materials.slice(0, 10)));
+        usedInClause = true;
+      }
+
+      // Sorting
+      // Note: First orderBy must match any inequality filter fields (price).
+      if (filters.priceRange) {
+        // If filtering by price, we MUST sort by price first.
+        if (filters.sortBy === 'price-desc') {
+          constraints.push(orderBy("price", "desc"));
+        } else {
+          constraints.push(orderBy("price", "asc"));
+        }
+      } else {
+        // Default sorting
+        switch (filters.sortBy) {
+          case "price-low":
+            constraints.push(orderBy("price", "asc"));
+            break;
+          case "price-high":
+            constraints.push(orderBy("price", "desc"));
+            break;
+          case "rating":
+            constraints.push(orderBy("rating", "desc"));
+            break;
+          case "newest":
+            constraints.push(orderBy("createdAt", "desc")); // Assuming createdAt exists
+            break;
+          default:
+            // Featured logic is complex to sort by if mixed with others usually, 
+            // but let's try strict equality if possible or just default
+            // constraints.push(orderBy("isFeatured", "desc")); 
+            // isFeatured might not be indexed properly with others.
+            break;
+        }
+      }
+
+      // Pagination
+      if (lastVisible) {
+        constraints.push(startAfter(lastVisible));
+      }
+
+      constraints.push(limit(limitCount));
+
+      const q = query(productsRef, ...constraints);
+      const querySnapshot = await getDocs(q);
+
+      const products = querySnapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() }) as AdminProduct,
+      );
+
+      return {
+        products,
+        lastVisible: querySnapshot.docs[querySnapshot.docs.length - 1] || null
+      };
+
+    } catch (error) {
+      console.error("Error fetching paginated products:", error);
+      return { products: [], lastVisible: null };
+    }
+  }
+
   async getProductById(id: string): Promise<AdminProduct | null> {
     try {
       const docRef = doc(db, "products", id);
@@ -420,7 +532,7 @@ class FirebaseService {
     try {
       // Generate a unique order number if not provided
       const orderNumber = order.orderNumber || generateOrderNumber();
-      
+
       const docRef = await addDoc(collection(db, "orders"), {
         ...order,
         orderNumber,

@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
-import { SlidersHorizontal, X, Grid, List } from "lucide-react";
+
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { SlidersHorizontal, X, Grid, List, Loader } from "lucide-react";
 import { Product } from "../types";
 import ProductCard from "../components/ProductCard";
 import firebaseService from "../services/firebaseService";
 import SEO from "../components/SEO";
 import { getPageSEO } from "../utils/seo";
+import { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 
 interface ProductListingPageProps {
   products: Product[];
@@ -15,82 +17,157 @@ interface ProductListingPageProps {
 }
 
 export default function ProductListingPage({
-  products: initialProducts,
+  products: _,
   onNavigate,
   onAddToCart,
   onToggleWishlist,
   wishlistIds,
 }: ProductListingPageProps) {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Filter States
   const [sortBy, setSortBy] = useState("featured");
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 200000]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [selectedStorage, setSelectedStorage] = useState<string[]>([]);
 
-  const brands = Array.from(new Set(products.map((p) => p.brand)));
+  // Pagination States
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(
+    null
+  );
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const observer = useRef<IntersectionObserver>();
+
+  // Filter Options (Derived from loaded products - Note: In a real app with SS pagination, 
+  // you might want to fetch all available brands separately to populate this list fully)
+  const brands = useMemo(() => Array.from(new Set(products.map((p) => p.brand))), [products]);
   const conditions = ["new", "refurbished", "used"];
-  const materialOptions = Array.from(new Set(products.map((p) => p.material)));
+  const materialOptions = useMemo(() => Array.from(new Set(products.map((p) => p.material))), [products]);
 
+  const fetchProducts = useCallback(async (isReset = false) => {
+    if (loading) return;
+    setLoading(true);
+
+    try {
+      const currentLastDoc = isReset ? null : lastDoc;
+
+      const { products: newProducts, lastVisible } = await firebaseService.getProductsPaginated(
+        currentLastDoc,
+        12, // Load 12 items at a time
+        {
+          priceRange,
+          brands: selectedBrands,
+          conditions: selectedConditions,
+          materials: selectedStorage,
+          sortBy
+        }
+      );
+
+      setProducts((prev) => {
+        if (isReset) return newProducts;
+        // Avoid duplicates if unique IDs
+        const existingIds = new Set(prev.map(p => p.id));
+        const uniqueNew = newProducts.filter(p => !existingIds.has(p.id));
+        return [...prev, ...uniqueNew];
+      });
+
+      setLastDoc(lastVisible);
+
+      if (newProducts.length < 12) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
+
+    } catch (error) {
+      console.error("Error loading products", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, lastDoc, priceRange, selectedBrands, selectedConditions, selectedStorage, sortBy]);
+
+  // Initial Load & Filter Change
   useEffect(() => {
-    // Set up real-time listener for products
-    const unsubscribe = firebaseService.onProductsChange((updatedProducts) => {
-      setProducts(updatedProducts);
-    });
+    // Reset and fetch when filters change
+    setHasMore(true);
+    setLastDoc(null);
+    setProducts([]); // Clear current list to show loading state or prevents mixing
+    // We need to bypass the 'loading' check for the reset, or ensure state is updated first
+    // Actually, calling the service directly here is safer to strictly control 'page 1'
 
-    // Clean up listener
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
+    let isActive = true;
+
+    const loadFirstPage = async () => {
+      setLoading(true);
+      try {
+        const { products: newProducts, lastVisible } = await firebaseService.getProductsPaginated(
+          null,
+          12,
+          {
+            priceRange,
+            brands: selectedBrands,
+            conditions: selectedConditions,
+            materials: selectedStorage,
+            sortBy
+          }
+        );
+
+        if (isActive) {
+          setProducts(newProducts);
+          setLastDoc(lastVisible);
+          setHasMore(newProducts.length >= 12);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (isActive) setLoading(false);
       }
     };
-  }, []);
 
-  const filteredProducts = useMemo(() => {
-    let filtered = products.filter((p) => {
-      const matchesPrice = p.price >= priceRange[0] && p.price <= priceRange[1];
-      const matchesBrand =
-        selectedBrands.length === 0 || selectedBrands.includes(p.brand);
-      const matchesCondition =
-        selectedConditions.length === 0 ||
-        selectedConditions.includes(p.condition);
-      const matchesMaterial =
-        selectedStorage.length === 0 || selectedStorage.includes(p.material);
+    loadFirstPage();
 
-      return (
-        matchesPrice && matchesBrand && matchesCondition && matchesMaterial
-      );
+    return () => { isActive = false; };
+  }, [priceRange, selectedBrands, selectedConditions, selectedStorage, sortBy]);
+
+
+  const lastElementRef = useCallback((node: HTMLDivElement) => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
+
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        fetchProducts(false);
+      }
     });
 
-    switch (sortBy) {
-      case "price-low":
-        filtered.sort((a, b) => a.price - b.price);
-        break;
-      case "price-high":
-        filtered.sort((a, b) => b.price - a.price);
-        break;
-      case "rating":
-        filtered.sort((a, b) => b.rating - a.rating);
-        break;
-      case "newest":
-        break;
-      default:
-        filtered.sort(
-          (a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0),
-        );
-    }
+    if (node) observer.current.observe(node);
+  }, [loading, hasMore, fetchProducts]);
 
-    return filtered;
-  }, [
-    products,
-    priceRange,
-    selectedBrands,
-    selectedConditions,
-    selectedStorage,
-    sortBy,
-  ]);
+
+  // Client-side filtering pass to ensure consistency 
+  // (since server might ignore 2nd+ array filters due to Firestore limitations)
+  const filteredProducts = useMemo(() => {
+    // We already filtered on server as much as possible, effectively 'products' IS the filtered list.
+    // However, if we used multiple array filters (Brand AND Condition), the server only applied one.
+    // We must enforce the others here.
+
+    return products.filter((p) => {
+      // Price is safe (server handles it)
+      // Brand:
+      const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(p.brand);
+      // Condition:
+      const matchesCondition = selectedConditions.length === 0 || selectedConditions.includes(p.condition);
+      // Material:
+      const matchesMaterial = selectedStorage.length === 0 || selectedStorage.includes(p.material);
+
+      // Note: We don't need to re-check Price or Sort, just the potentially skipped array filters.
+      return matchesBrand && matchesCondition && matchesMaterial;
+    });
+  }, [products, selectedBrands, selectedConditions, selectedStorage]);
 
   const toggleBrand = (brand: string) => {
     setSelectedBrands((prev) =>
@@ -159,7 +236,7 @@ export default function ProductListingPage({
             </button>
 
             <span className="text-sm text-gray-600">
-              {filteredProducts.length} products found
+              {filteredProducts.length} products loaded
             </span>
           </div>
 
@@ -310,7 +387,7 @@ export default function ProductListingPage({
           )}
 
           <div className="flex-1">
-            {filteredProducts.length === 0 ? (
+            {filteredProducts.length === 0 && !loading ? (
               <div className="bg-white rounded-lg shadow-sm p-12 text-center">
                 <p className="text-gray-600 mb-4">
                   No products match your filters
@@ -323,22 +400,36 @@ export default function ProductListingPage({
                 </button>
               </div>
             ) : (
-              <div
-                className={`grid ${viewMode === "grid" ? "grid-cols-2 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"} gap-4 sm:gap-6`}
-              >
-                {filteredProducts.map((product) => {
-                  return (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onNavigate={onNavigate}
-                      onAddToCart={onAddToCart}
-                      onToggleWishlist={onToggleWishlist}
-                      isInWishlist={wishlistIds.includes(product.id)}
-                    />
-                  );
-                })}
-              </div>
+              <>
+                <div
+                  className={`grid ${viewMode === "grid" ? "grid-cols-2 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"} gap-4 sm:gap-6`}
+                >
+                  {filteredProducts.map((product, index) => {
+                    const isLast = index === filteredProducts.length - 1;
+                    return (
+                      <div key={product.id} ref={isLast ? lastElementRef : null}>
+                        <ProductCard
+                          product={product}
+                          onNavigate={onNavigate}
+                          onAddToCart={onAddToCart}
+                          onToggleWishlist={onToggleWishlist}
+                          isInWishlist={wishlistIds.includes(product.id)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                {loading && (
+                  <div className="py-8 flex justify-center w-full">
+                    <Loader className="animate-spin text-blue-600 w-8 h-8" />
+                  </div>
+                )}
+                {!hasMore && filteredProducts.length > 0 && (
+                  <div className="py-8 text-center text-gray-500 text-sm">
+                    You have reached the end of the list
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

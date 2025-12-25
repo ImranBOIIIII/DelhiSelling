@@ -74,8 +74,8 @@ export default function AddressManagement() {
       setAddresses([...addresses, newAddress]);
       setIsAddingAddress(false);
     } else if (editingAddressId) {
-      setAddresses(addresses.map(addr => 
-        addr.id === editingAddressId 
+      setAddresses(addresses.map(addr =>
+        addr.id === editingAddressId
           ? { ...addr, ...formData }
           : addr
       ));
@@ -111,12 +111,12 @@ export default function AddressManagement() {
     if (window.confirm('Are you sure you want to delete this address?')) {
       const addressToDelete = addresses.find(addr => addr.id === addressId);
       const remainingAddresses = addresses.filter(addr => addr.id !== addressId);
-      
+
       // If we're deleting the default address and there are other addresses, make the first one default
       if (addressToDelete?.isDefault && remainingAddresses.length > 0) {
         remainingAddresses[0].isDefault = true;
       }
-      
+
       setAddresses(remainingAddresses);
     }
   };
@@ -180,7 +180,7 @@ export default function AddressManagement() {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="+91 98765 43210"
+                placeholder="+91 92052 500690"
               />
             </div>
             <div className="md:col-span-2">
@@ -298,7 +298,7 @@ export default function AddressManagement() {
                   <Edit3 className="w-3 h-3" />
                   <span className="text-sm">Edit</span>
                 </button>
-                
+
                 {!address.isDefault && (
                   <button
                     onClick={() => handleSetDefault(address.id)}
@@ -307,7 +307,7 @@ export default function AddressManagement() {
                     Set as Default
                   </button>
                 )}
-                
+
                 <button
                   onClick={() => handleDeleteAddress(address.id)}
                   className="flex items-center space-x-1 text-red-600 hover:text-red-700 px-3 py-1 rounded border border-red-200 hover:bg-red-50 transition-colors"

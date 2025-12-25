@@ -47,7 +47,7 @@ export default function BulkDealsPage({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Prepare form data for WhatsApp
     const formDataForWhatsApp = {
       name,
@@ -59,10 +59,10 @@ export default function BulkDealsPage({
       message: message || 'No additional message',
       timestamp: new Date().toLocaleString()
     };
-    
+
     // Redirect to WhatsApp with form data
     redirectToWhatsApp(formDataForWhatsApp, 'Bulk Order Inquiry');
-    
+
     // Reset form
     setName('');
     setEmail('');
@@ -178,7 +178,7 @@ export default function BulkDealsPage({
                 </div>
                 <div className="flex items-center space-x-3">
                   <Phone className="w-5 h-5 text-blue-600" />
-                  <span>+91 98765 43210</span>
+                  <span>+91 92052 500690</span>
                 </div>
               </div>
             </div>

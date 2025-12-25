@@ -157,7 +157,7 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
                     setFormData({ ...formData, phone: e.target.value })
                   }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 92052 500690"
                 />
               </div>
               <div className="flex space-x-3 pt-4">

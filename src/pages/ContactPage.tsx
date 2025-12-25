@@ -17,16 +17,16 @@ export default function ContactPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Prepare form data for WhatsApp
     const formDataForWhatsApp = {
       ...formData,
       timestamp: new Date().toLocaleString()
     };
-    
+
     // Redirect to WhatsApp with form data
     redirectToWhatsApp(formDataForWhatsApp, 'Contact Form');
-    
+
     // Reset form
     setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
   };
@@ -61,7 +61,7 @@ export default function ContactPage() {
               <Mail className="w-6 h-6 text-green-600" />
             </div>
             <h3 className="font-semibold text-gray-900 mb-2">Email</h3>
-            <p className="text-gray-600">sarfraz93548@gmail.com</p>
+            <p className="text-gray-600">Support@delhiselling.com</p>
             <p className="text-sm text-gray-500 mt-1">24/7 Support</p>
           </div>
 
@@ -159,7 +159,7 @@ export default function ContactPage() {
 
           <div>
             <h2 className="text-3xl font-bold text-gray-900 mb-6">Why Choose Us?</h2>
-            
+
             <div className="space-y-4 mb-6">
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <div className="flex items-start space-x-4">
